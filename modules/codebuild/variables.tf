@@ -66,32 +66,12 @@ variable "ecr_repository_urls" {
   default = {}
 }
 
-variable "sast_enabled" {
-  type    = bool
-  default = true
-}
-
-variable "dast_enabled" {
-  type    = bool
-  default = true
-}
-
-variable "sbom_enabled" {
-  type    = bool
-  default = true
-}
-
 variable "iac_scan_enabled" {
   type    = bool
   default = true
 }
 
 variable "dependency_scan_enabled" {
-  type    = bool
-  default = true
-}
-
-variable "secret_scan_enabled" {
   type    = bool
   default = true
 }
