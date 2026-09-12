@@ -1,4 +1,6 @@
 terraform {
+  required_version = ">= 1.0"
+
   backend "s3" {
     bucket              = "REPLACE-ME-dev-terraform-state"
     key                 = "devsecops-pipeline/dev/terraform.tfstate"
