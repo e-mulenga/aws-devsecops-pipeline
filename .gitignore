@@ -1,0 +1,56 @@
+# ============================================================
+# aws-devsecops-pipeline — .gitignore
+# ============================================================
+
+# Terraform state — NEVER commit
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+# Variable files with real values — NEVER commit
+terraform.tfvars
+*.auto.tfvars
+environments/dev/terraform.tfvars
+environments/test/terraform.tfvars
+environments/prod/terraform.tfvars
+
+# AWS credentials & secrets
+.aws/
+*.pem
+*.key
+*_rsa
+*.p12
+
+# Security scan outputs (contain vulnerability details)
+*.sarif
+gitleaks-report.*
+trivy-*.sarif
+semgrep-results.*
+zap-report.*
+sbom-*.json
+
+# Pipeline plan files
+*.tfplan
+plan.tfplan
+tfplan
+
+# IDE & OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
+
+# Build artefacts
+/tmp/slack_notifier.zip
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+
+# Crash logs
+crash.log
+crash.*.log

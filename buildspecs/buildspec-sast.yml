@@ -1,0 +1,51 @@
+# ============================================================
+# buildspec-sast.yml — Stage 2: Static Application Security Testing
+# ============================================================
+# Tools: Semgrep (OWASP, security-audit rulesets)
+#        Bandit (Python — if applicable)
+#        npm audit (Node.js — if applicable)
+# Findings exported as SARIF and imported to Security Hub.
+# ============================================================
+version: 0.2
+env:
+  variables:
+    SEMGREP_VERSION: "1.68.0"
+    SAST_FAILURE_ACTION: "BLOCK"    # overridden by CodeBuild env var
+phases:
+  install:
+    commands:
+      - pip install semgrep==${SEMGREP_VERSION} --quiet
+      - pip install bandit --quiet
+      - semgrep --version
+  build:
+    commands:
+      - echo "=== Running Semgrep SAST ==="
+      - |
+        semgrep scan \
+          --config "p/owasp-top-ten" \
+          --config "p/security-audit" \
+          --config "p/secrets" \
+          --config "p/cwe-top-25" \
+          --sarif \
+          --output semgrep-results.sarif \
+          --error \
+          . || SEMGREP_EXIT=$?
+      - |
+        if [ "${SEMGREP_EXIT:-0}" -ne 0 ] && [ "${SAST_FAILURE_ACTION}" = "BLOCK" ]; then
+          echo "SAST: Critical findings found. Pipeline BLOCKED (SAST_FAILURE_ACTION=BLOCK)."
+          exit 1
+        elif [ "${SEMGREP_EXIT:-0}" -ne 0 ]; then
+          echo "SAST: Findings detected but SAST_FAILURE_ACTION=WARN — continuing."
+        fi
+      - |
+        if [ -f "requirements.txt" ] || [ -f "setup.py" ]; then
+          echo "=== Running Bandit (Python SAST) ==="
+          bandit -r . -f json -o bandit-results.json || true
+        fi
+      - echo "=== SAST complete ==="
+artifacts:
+  files:
+    - semgrep-results.sarif
+    - "bandit-results.json"
+  discard-paths: yes
+  name: SASTResults

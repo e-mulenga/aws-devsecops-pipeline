@@ -1,0 +1,34 @@
+# ============================================================
+# buildspec-iac-scan.yml — IaC Security Scan
+# ============================================================
+# Tools: tfsec + checkov
+# Scans Terraform, CloudFormation, Kubernetes manifests.
+# ============================================================
+version: 0.2
+env:
+  variables:
+    TFSEC_VERSION: "1.28.6"
+    CHECKOV_VERSION: "3.2.0"
+phases:
+  install:
+    commands:
+      - curl -Lo /usr/local/bin/tfsec "https://github.com/aquasecurity/tfsec/releases/download/v${TFSEC_VERSION}/tfsec-linux-amd64"
+      - chmod +x /usr/local/bin/tfsec
+      - pip install checkov==${CHECKOV_VERSION} --quiet
+  build:
+    commands:
+      - echo "=== Running tfsec ==="
+      - tfsec . --minimum-severity HIGH --format sarif --out tfsec-results.sarif --no-color || TFSEC_EXIT=$?
+      - echo "=== Running checkov ==="
+      - checkov -d . --framework terraform --output sarif --output-file-path checkov-results.sarif --soft-fail || true
+      - |
+        if [ "${TFSEC_EXIT:-0}" -ne 0 ]; then
+          echo "IaC SCAN FAILED: HIGH/CRITICAL findings detected by tfsec."
+          tfsec . --minimum-severity HIGH --no-color
+          exit 1
+        fi
+artifacts:
+  files:
+    - tfsec-results.sarif
+    - checkov-results.sarif
+  name: IaCScanResults

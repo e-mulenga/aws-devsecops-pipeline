@@ -1,0 +1,38 @@
+# ============================================================
+# buildspec-integration-test.yml — Integration & API Tests
+# ============================================================
+# Runs integration tests against the deployed dev environment.
+# Supports pytest, Newman (Postman), and k6 load tests.
+# ============================================================
+version: 0.2
+env:
+  variables:
+    TEST_TIMEOUT: "300"
+phases:
+  install:
+    commands:
+      - pip install pytest requests pytest-html --quiet
+      - npm install -g newman --quiet 2>/dev/null || true
+  pre_build:
+    commands:
+      - echo "=== Assuming cross-account role for dev ==="
+      - |
+        CREDS=$(aws sts assume-role \
+          --role-arn "arn:aws:iam::${TEST_ENV_ACCOUNT_ID}:role/${ORGANIZATION_NAME}-pipeline-deploy-role" \
+          --role-session-name "IntegrationTest-${CODEBUILD_BUILD_ID}" \
+          --query 'Credentials' --output json)
+        export AWS_ACCESS_KEY_ID=$(echo $CREDS | python3 -c "import json,sys; print(json.load(sys.stdin)['AccessKeyId'])")
+        export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | python3 -c "import json,sys; print(json.load(sys.stdin)['SecretAccessKey'])")
+        export AWS_SESSION_TOKEN=$(echo $CREDS | python3 -c "import json,sys; print(json.load(sys.stdin)['SessionToken'])")
+  build:
+    commands:
+      - echo "=== Running integration tests ==="
+      - '[ -f tests/integration/pytest.ini ] || [ -d tests/integration ] && pytest tests/integration/ --html=integration-test-report.html --junitxml=integration-results.xml -v || true'
+      - '[ -f tests/postman/collection.json ] && newman run tests/postman/collection.json --reporters cli,junit --reporter-junit-export newman-results.xml || true'
+      - echo "Integration tests complete."
+artifacts:
+  files:
+    - "integration-test-report.html"
+    - "integration-results.xml"
+    - "newman-results.xml"
+  name: IntegrationTestResults

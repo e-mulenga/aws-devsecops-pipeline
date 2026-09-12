@@ -1,0 +1,217 @@
+# ============================================================
+# GitHub Actions — Terraform Apply
+# ============================================================
+# Triggered on merge to main.
+# DEV:  auto-apply
+# TEST: requires 1 reviewer approval
+# PROD: requires 2 reviewers + 15-min wait timer
+#
+# Scheduled drift detection runs Mon–Fri at 06:00 UTC.
+# ============================================================
+
+name: Terraform Apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**.tf"
+      - "buildspecs/**"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options: [dev, test, prod]
+      action:
+        description: "Action"
+        required: true
+        type: choice
+        options: [apply, plan-only]
+        default: apply
+  schedule:
+    - cron: "0 6 * * 1-5"    # Drift detection Mon–Fri 06:00 UTC
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  TF_VERSION: "1.7.5"
+  AWS_REGION:  "af-south-1"
+
+jobs:
+  # ---- Deploy DEV (auto on merge) ---------------------------
+  deploy-dev:
+    name: Deploy → DEV
+    runs-on: ubuntu-latest
+    environment: dev
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN_DEV }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-Apply-Dev-${{ github.run_id }}
+          role-duration-seconds: 3600
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "${{ env.TF_VERSION }}" }
+
+      - name: Terraform Init
+        run: terraform init -backend-config="environments/dev/backend.tf" -input=false -reconfigure
+
+      - name: Terraform Plan
+        run: terraform plan -var-file="environments/dev/terraform.tfvars" -out=dev.tfplan -input=false
+
+      - name: Terraform Apply
+        if: github.event.inputs.action != 'plan-only'
+        run: terraform apply -auto-approve -input=false dev.tfplan
+
+      - name: Summary
+        run: |
+          echo "## ✅ DEV Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          terraform output -json 2>/dev/null | jq -r 'to_entries[] | "- **\(.key)**: \(.value.value)"' >> $GITHUB_STEP_SUMMARY || true
+
+  # ---- Deploy TEST (requires 1 approval) --------------------
+  deploy-test:
+    name: Deploy → TEST
+    runs-on: ubuntu-latest
+    environment: test
+    needs: deploy-dev
+    if: |
+      always() &&
+      (needs.deploy-dev.result == 'success' || needs.deploy-dev.result == 'skipped') &&
+      (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'test'))
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN_TEST }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-Apply-Test-${{ github.run_id }}
+          role-duration-seconds: 3600
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "${{ env.TF_VERSION }}" }
+
+      - name: Terraform Init
+        run: terraform init -backend-config="environments/test/backend.tf" -input=false -reconfigure
+
+      - name: Terraform Plan
+        run: terraform plan -var-file="environments/test/terraform.tfvars" -out=test.tfplan -input=false
+
+      - name: Terraform Apply
+        if: github.event.inputs.action != 'plan-only'
+        run: terraform apply -auto-approve -input=false test.tfplan
+
+      - name: Summary
+        run: |
+          echo "## ✅ TEST Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+
+  # ---- Deploy PROD (requires 2 approvals + wait) ------------
+  deploy-prod:
+    name: Deploy → PROD
+    runs-on: ubuntu-latest
+    environment: production
+    needs: deploy-test
+    if: |
+      always() &&
+      (needs.deploy-test.result == 'success' || needs.deploy-test.result == 'skipped') &&
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-Apply-Prod-${{ github.run_id }}
+          role-duration-seconds: 3600
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "${{ env.TF_VERSION }}" }
+
+      - name: Terraform Init
+        run: terraform init -backend-config="environments/prod/backend.tf" -input=false -reconfigure
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan \
+            -var-file="environments/prod/terraform.tfvars" \
+            -detailed-exitcode -input=false
+        continue-on-error: true
+
+      - name: Skip if no changes
+        if: steps.plan.outputs.exitcode == '0'
+        run: echo "No changes detected — skipping apply." >> $GITHUB_STEP_SUMMARY
+
+      - name: Terraform Apply
+        if: steps.plan.outputs.exitcode == '2' && github.event.inputs.action != 'plan-only'
+        run: |
+          terraform plan -var-file="environments/prod/terraform.tfvars" -out=prod.tfplan -input=false
+          terraform apply -auto-approve -input=false prod.tfplan
+
+      - name: Summary
+        if: steps.plan.outputs.exitcode == '2'
+        run: |
+          echo "## ✅ PROD Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }} | **Run:** ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+
+  # ---- Drift Detection (scheduled Mon–Fri) ------------------
+  drift-detection:
+    name: Drift Detection — ${{ matrix.environment }}
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    strategy:
+      matrix:
+        environment: [dev, test, prod]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets[format('AWS_PLAN_ROLE_ARN_{0}', upper(matrix.environment))] }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: DriftDetection-${{ matrix.environment }}-${{ github.run_id }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "${{ env.TF_VERSION }}" }
+
+      - name: Terraform Init
+        run: terraform init -backend-config="environments/${{ matrix.environment }}/backend.tf" -input=false -reconfigure
+
+      - name: Detect Drift
+        id: drift
+        run: |
+          terraform plan \
+            -var-file="environments/${{ matrix.environment }}/terraform.tfvars" \
+            -detailed-exitcode -input=false -no-color 2>&1 | tee drift-output.txt
+          echo "exitcode=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+
+      - name: Alert on drift
+        if: steps.drift.outputs.exitcode == '2'
+        run: |
+          echo "## ⚠️ DRIFT DETECTED in ${{ matrix.environment }}" >> $GITHUB_STEP_SUMMARY
+          cat drift-output.txt >> $GITHUB_STEP_SUMMARY
+          exit 1

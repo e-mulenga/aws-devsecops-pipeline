@@ -1,0 +1,80 @@
+# ============================================================
+# AWS DevSecOps Pipeline — Example tfvars
+# ============================================================
+# Copy this file to terraform.tfvars and populate with real values.
+# NEVER commit terraform.tfvars — it is excluded by .gitignore.
+#
+# cp terraform.tfvars.example terraform.tfvars
+# ============================================================
+
+# ---- Identity & Naming --------------------------------------
+organization_name = "acme-enterprise"
+aws_region        = "af-south-1"
+environment       = "prod"
+owner             = "Platform Engineering"
+cost_center       = "DEVOPS001"
+
+# ---- Target Account IDs (from landing zone terraform output) -
+# terraform -chdir=../aws-enterprise-landing-zone output -json
+dev_account_id             = ""   # populate after landing zone apply
+test_account_id            = ""   # populate after landing zone apply
+prod_account_id            = ""   # populate after landing zone apply
+shared_services_account_id = ""   # populate after landing zone apply
+
+# ---- Landing Zone Inputs ------------------------------------
+# terraform -chdir=../aws-enterprise-landing-zone output kms_cloudtrail_key_arn
+kms_key_arn            = ""   # KMS key ARN from landing zone
+cloudtrail_bucket_name = "acme-enterprise-org-cloudtrail-prod"
+
+# ---- Pipeline Source ----------------------------------------
+source_provider       = "CodeStarSourceConnection"
+github_connection_arn = ""   # Created in AWS Console → Developer Tools → Connections
+repository_name       = "your-org/your-app-repo"
+branch_name           = "main"
+
+# ---- Container Registry -------------------------------------
+ecr_repository_names      = ["app", "sidecar"]
+ecr_image_retention_count = 30
+ecr_scan_on_push          = true
+
+# ---- Build Configuration ------------------------------------
+build_compute_type    = "BUILD_GENERAL1_MEDIUM"
+build_image           = "aws/codebuild/standard:7.0"
+build_timeout_minutes = 60
+
+# ---- Security Gates -----------------------------------------
+sast_enabled                       = true
+dast_enabled                       = true
+sbom_enabled                       = true
+iac_scan_enabled                   = true
+dependency_scan_enabled            = true
+secret_scan_enabled                = true
+sast_failure_action                = "BLOCK"
+container_scan_severity_threshold  = "HIGH"
+
+# ---- Approvals ----------------------------------------------
+require_test_approval       = true
+require_prod_approval       = true
+approval_notification_email = "platform-team@company.com"
+
+# ---- Artifact Store -----------------------------------------
+artifact_bucket_name    = "acme-enterprise-pipeline-artifacts-prod"
+artifact_retention_days = 30
+
+# ---- CodeArtifact -------------------------------------------
+codeartifact_enabled     = true
+codeartifact_domain_name = "acme-enterprise-prod"
+
+# ---- Notifications ------------------------------------------
+pipeline_notification_email = "cloudteam@company.com"
+slack_webhook_secret_arn    = ""   # Optional: Secrets Manager ARN for Slack webhook
+
+# ---- VPC (private CodeBuild - recommended for prod) ---------
+# Populate from terraform-enterprise-module-library vpc module outputs
+vpc_id                     = ""   # Optional
+private_subnet_ids         = []   # Optional
+codebuild_security_group_ids = [] # Optional
+
+# ---- Monitoring ---------------------------------------------
+log_retention_days                = 90
+pipeline_alarm_threshold_failures = 3

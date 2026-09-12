@@ -1,0 +1,63 @@
+# ============================================================
+# buildspec-build.yml — Stage 3: Build + Unit Tests
+# ============================================================
+# Actions:
+#   1. Authenticate to CodeArtifact (if enabled)
+#   2. Install dependencies via CodeArtifact proxy
+#   3. Run unit tests with coverage report
+#   4. Build Docker image
+#   5. Push to ECR
+#   6. Output image definitions for ECS/EKS deployment
+# ============================================================
+version: 0.2
+env:
+  variables:
+    IMAGE_TAG: "latest"
+  exported-variables:
+    - IMAGE_URI
+    - IMAGE_TAG
+phases:
+  pre_build:
+    commands:
+      - echo "=== Authenticating to ECR ==="
+      - ECR_REGISTRY=$(echo $ECR_REPO_APP | cut -d'/' -f1)
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+      - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c1-8)
+      - IMAGE_URI="${ECR_REPO_APP}:${IMAGE_TAG}"
+      - |
+        if [ -n "${CODEARTIFACT_DOMAIN}" ]; then
+          echo "=== Authenticating to CodeArtifact ==="
+          CODEARTIFACT_TOKEN=$(aws codeartifact get-authorization-token \
+            --domain $CODEARTIFACT_DOMAIN \
+            --query authorizationToken --output text)
+          export CODEARTIFACT_AUTH_TOKEN=$CODEARTIFACT_TOKEN
+          npm config set registry "https://${CODEARTIFACT_DOMAIN}-${AWS_ACCOUNT_ID}.d.codeartifact.${AWS_REGION}.amazonaws.com/npm/${CODEARTIFACT_REPOSITORY}/"
+          npm config set "//${CODEARTIFACT_DOMAIN}-${AWS_ACCOUNT_ID}.d.codeartifact.${AWS_REGION}.amazonaws.com/npm/${CODEARTIFACT_REPOSITORY}/:_authToken" $CODEARTIFACT_AUTH_TOKEN
+        fi
+  build:
+    commands:
+      - echo "=== Installing dependencies ==="
+      - '[ -f package.json ] && npm ci --prefer-offline || true'
+      - '[ -f requirements.txt ] && pip install -r requirements.txt --quiet || true'
+      - '[ -f pom.xml ] && mvn dependency:resolve -q || true'
+      - echo "=== Running unit tests ==="
+      - '[ -f package.json ] && npm test -- --coverage --ci --reporters=jest-junit || true'
+      - '[ -f pytest.ini ] || [ -f setup.py ] && pytest --cov=. --cov-report=xml --junitxml=test-results.xml || true'
+      - echo "=== Building Docker image ==="
+      - docker build -t $IMAGE_URI --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") --build-arg VCS_REF=$CODEBUILD_RESOLVED_SOURCE_VERSION .
+  post_build:
+    commands:
+      - echo "=== Pushing image to ECR ==="
+      - docker push $IMAGE_URI
+      - docker tag $IMAGE_URI "${ECR_REPO_APP}:latest"
+      - docker push "${ECR_REPO_APP}:latest"
+      - printf '[{"name":"app","imageUri":"%s"}]' $IMAGE_URI > imagedefinitions.json
+      - echo "Build complete. Image: $IMAGE_URI"
+artifacts:
+  files:
+    - imagedefinitions.json
+    - "test-results.xml"
+    - "coverage.xml"
+  secondary-artifacts:
+    ImageDefinitions:
+      files: imagedefinitions.json

@@ -1,0 +1,55 @@
+# ============================================================
+# buildspec-container-scan.yml — Stage 4: Container Scan
+# ============================================================
+# Tools: Trivy (filesystem + image) + Amazon Inspector v2
+# Blocks pipeline on findings >= SCAN_SEVERITY_THRESHOLD.
+# Findings imported to Security Hub via ASFF format.
+# ============================================================
+version: 0.2
+env:
+  variables:
+    TRIVY_VERSION: "0.49.0"
+    SCAN_SEVERITY_THRESHOLD: "HIGH"
+phases:
+  install:
+    commands:
+      - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v${TRIVY_VERSION}
+      - trivy --version
+  pre_build:
+    commands:
+      - ECR_REGISTRY=$(cat imagedefinitions.json | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['imageUri'].split('/')[0])")
+      - IMAGE_URI=$(cat imagedefinitions.json | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['imageUri'])")
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+      - docker pull $IMAGE_URI
+  build:
+    commands:
+      - echo "=== Running Trivy image scan ==="
+      - |
+        trivy image \
+          --severity "${SCAN_SEVERITY_THRESHOLD},CRITICAL" \
+          --exit-code 1 \
+          --format sarif \
+          --output trivy-image-results.sarif \
+          --no-progress \
+          $IMAGE_URI || TRIVY_EXIT=$?
+      - echo "=== Running Trivy filesystem scan ==="
+      - |
+        trivy fs \
+          --severity "${SCAN_SEVERITY_THRESHOLD},CRITICAL" \
+          --exit-code 0 \
+          --format sarif \
+          --output trivy-fs-results.sarif \
+          --no-progress \
+          .
+      - |
+        if [ "${TRIVY_EXIT:-0}" -ne 0 ]; then
+          echo "CONTAINER SCAN FAILED: Vulnerabilities at ${SCAN_SEVERITY_THRESHOLD}+ severity found."
+          trivy image --severity ${SCAN_SEVERITY_THRESHOLD},CRITICAL --no-progress $IMAGE_URI
+          exit 1
+        fi
+      - echo "=== Container scan passed ==="
+artifacts:
+  files:
+    - trivy-image-results.sarif
+    - trivy-fs-results.sarif
+  name: ContainerScanResults

@@ -1,0 +1,86 @@
+{
+  "Comment": "Cross-account deployment role assumed by CodeBuild. Create this role in each target account (dev, test, prod) to allow the pipeline account's CodeBuild role to deploy workloads.",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ECSDeployment",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:UpdateService", "ecs:DescribeServices",
+        "ecs:DescribeTaskDefinition", "ecs:RegisterTaskDefinition",
+        "ecs:ListTasks", "ecs:DescribeTasks",
+        "ecs:RunTask", "ecs:StopTask"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EKSDeployment",
+      "Effect": "Allow",
+      "Action": [
+        "eks:DescribeCluster", "eks:ListClusters",
+        "eks:UpdateNodegroupConfig", "eks:DescribeUpdate"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ECRAccess",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ecr:DescribeImages"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SSMParameterRead",
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"],
+      "Resource": "arn:aws:ssm:*:*:parameter/*"
+    },
+    {
+      "Sid": "SecretsManagerRead",
+      "Effect": "Allow",
+      "Action": ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+      "Resource": "arn:aws:secretsmanager:*:*:secret:*"
+    },
+    {
+      "Sid": "KMSDecrypt",
+      "Effect": "Allow",
+      "Action": ["kms:Decrypt", "kms:DescribeKey", "kms:GenerateDataKey"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CloudWatchLogs",
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": "arn:aws:logs:*:*:log-group:/aws/*"
+    },
+    {
+      "Sid": "IAMPassRole",
+      "Effect": "Allow",
+      "Action": ["iam:PassRole"],
+      "Resource": "*",
+      "Condition": {
+        "StringEqualsIfExists": {
+          "iam:PassedToService": ["ecs-tasks.amazonaws.com", "eks.amazonaws.com"]
+        }
+      }
+    },
+    {
+      "Sid": "DenyDestructiveProd",
+      "Effect": "Deny",
+      "Action": [
+        "ecs:DeleteCluster", "ecs:DeleteService",
+        "eks:DeleteCluster", "eks:DeleteNodegroup",
+        "rds:DeleteDBInstance", "rds:DropDBCluster"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": { "aws:ResourceTag/Environment": "prod" }
+      }
+    }
+  ]
+}

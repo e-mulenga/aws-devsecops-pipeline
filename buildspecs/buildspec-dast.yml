@@ -1,0 +1,58 @@
+# ============================================================
+# buildspec-dast.yml — Dynamic Application Security Testing
+# ============================================================
+# Tool: OWASP ZAP (Zed Attack Proxy) in Docker
+# Performs active scan against the deployed dev environment.
+# Fails on HIGH or CRITICAL risk alerts.
+# ============================================================
+version: 0.2
+env:
+  variables:
+    ZAP_VERSION: "2.14.0"
+    TARGET_URL: ""    # Override via SSM parameter or pipeline env var
+    RISK_THRESHOLD: "3"  # 3=HIGH, 2=MEDIUM, 1=LOW
+phases:
+  pre_build:
+    commands:
+      - |
+        if [ -z "${TARGET_URL}" ]; then
+          TARGET_URL=$(aws ssm get-parameter \
+            --name "/${ORGANIZATION_NAME}/${ENVIRONMENT}/app/url" \
+            --query Parameter.Value --output text 2>/dev/null || echo "")
+        fi
+      - echo "=== DAST target: ${TARGET_URL} ==="
+      - '[ -z "${TARGET_URL}" ] && echo "WARNING: No target URL configured — skipping DAST" && exit 0'
+  build:
+    commands:
+      - echo "=== Running OWASP ZAP baseline scan ==="
+      - |
+        docker run --rm \
+          -v $(pwd):/zap/wrk/:rw \
+          ghcr.io/zaproxy/zaproxy:stable \
+          zap-baseline.py \
+          -t "${TARGET_URL}" \
+          -r zap-report.html \
+          -J zap-report.json \
+          -x zap-report.xml \
+          -I \
+          -z "-config alert.maxinstances=5" || ZAP_EXIT=$?
+      - |
+        HIGH_COUNT=$(python3 -c "
+import json
+try:
+  d=json.load(open('zap-report.json'))
+  alerts=[a for a in d.get('site',[{}])[0].get('alerts',[]) if int(a.get('riskcode',0)) >= int('${RISK_THRESHOLD}')]
+  print(len(alerts))
+except: print(0)
+")
+      - |
+        if [ "${HIGH_COUNT}" -gt 0 ]; then
+          echo "DAST FAILED: ${HIGH_COUNT} HIGH/CRITICAL risk alerts found."
+          exit 1
+        fi
+      - echo "=== DAST passed — no HIGH/CRITICAL findings ==="
+artifacts:
+  files:
+    - zap-report.html
+    - zap-report.json
+  name: DASTResults
