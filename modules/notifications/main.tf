@@ -21,6 +21,9 @@ terraform {
   }
 }
 
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
 locals {
   name_prefix = "${var.organization_name}-${var.environment}"
 }
@@ -204,7 +207,7 @@ resource "aws_iam_role_policy" "slack_notifier" {
 resource "aws_cloudwatch_log_group" "slack_notifier" {
   count             = var.slack_webhook_secret_arn != "" ? 1 : 0
   name              = "/aws/lambda/${local.name_prefix}-slack-notifier"
-  retention_in_days = var.log_retention_days
+  retention_in_days = 365
   kms_key_id        = var.kms_key_arn
 }
 
