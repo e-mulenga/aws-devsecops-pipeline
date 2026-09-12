@@ -152,6 +152,16 @@ locals {
 }
 
 # ---- CodeBuild Projects (for_each over project map) ---------
+
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
 resource "aws_codebuild_project" "main" {
   for_each = local.projects
 

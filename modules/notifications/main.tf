@@ -25,8 +25,8 @@ terraform {
   }
 }
 
-data "aws_caller_identity" "current" {}
-data "aws_region" "current" {}
+//data "aws_caller_identity" "current" {}
+//data "aws_region" "current" {}
 
 locals {
   name_prefix = "${var.organization_name}-${var.environment}"

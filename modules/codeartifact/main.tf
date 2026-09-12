@@ -87,27 +87,27 @@ resource "aws_codeartifact_repository" "internal" {
   tags = { Name = "${var.domain_name}-internal" }
 }
 
-resource "aws_codeartifact_repository_permissions_policy" "internal" {
-  repository      = aws_codeartifact_repository.internal.repository
-  domain          = aws_codeartifact_domain.main.domain
-  policy_document = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Sid    = "AllowCodeBuild"
-      Effect = "Allow"
-      Principal = { AWS = [var.codebuild_role_arn] }
-      Action = [
-        "codeartifact:DescribePackageVersion", "codeartifact:DescribeRepository",
-        "codeartifact:GetPackageVersionReadme", "codeartifact:GetRepositoryEndpoint",
-        "codeartifact:ListPackages", "codeartifact:ListPackageVersions",
-        "codeartifact:ListPackageVersionAssets", "codeartifact:ListPackageVersionDependencies",
-        "codeartifact:ReadFromRepository", "codeartifact:PublishPackageVersion",
-        "codeartifact:PutPackageMetadata"
-      ]
-      Resource = "*"
-    }]
-  })
-}
+# resource "aws_codeartifact_repository_permissions_policy" "internal" {
+#   repository      = aws_codeartifact_repository.internal.repository
+#   domain          = aws_codeartifact_domain.main.domain
+#   policy_document = jsonencode({
+#     Version = "2012-10-17"
+#     Statement = [{
+#       Sid    = "AllowCodeBuild"
+#       Effect = "Allow"
+#       Principal = { AWS = [var.codebuild_role_arn] }
+#       Action = [
+#         "codeartifact:DescribePackageVersion", "codeartifact:DescribeRepository",
+#         "codeartifact:GetPackageVersionReadme", "codeartifact:GetRepositoryEndpoint",
+#         "codeartifact:ListPackages", "codeartifact:ListPackageVersions",
+#         "codeartifact:ListPackageVersionAssets", "codeartifact:ListPackageVersionDependencies",
+#         "codeartifact:ReadFromRepository", "codeartifact:PublishPackageVersion",
+#         "codeartifact:PutPackageMetadata"
+#       ]
+#       Resource = "*"
+#     }]
+#   })
+# }
 
 terraform {
   required_version = ">= 1.5.0"

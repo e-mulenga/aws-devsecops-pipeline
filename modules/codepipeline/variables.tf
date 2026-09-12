@@ -1,7 +1,7 @@
 variable "organization_name"             { type = string }
 variable "environment"                   { type = string }
-variable "region"                        { type = string }
-variable "account_id"                    { type = string }
+# variable "region"                        { type = string }
+# variable "account_id"                    { type = string }
 variable "pipeline_role_arn"             { type = string }
 variable "artifact_bucket_name"          { type = string }
 variable "kms_key_arn"                   { type = string }

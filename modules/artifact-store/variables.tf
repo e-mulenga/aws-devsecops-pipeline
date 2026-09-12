@@ -8,8 +8,8 @@ variable "retention_days" {
 }
 variable "pipeline_role_arn"  { type = string }
 variable "codebuild_role_arn" { type = string }
-variable "log_retention_days" {
-  type    = number
-  default = 365
-  description = "CloudWatch log retention period in days. Must be at least 365 to comply with CKV_AWS_338."
-}
+# variable "log_retention_days" {
+#   type    = number
+#   default = 365
+#   description = "CloudWatch log retention period in days. Must be at least 365 to comply with CKV_AWS_338."
+# }
