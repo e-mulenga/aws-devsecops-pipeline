@@ -9,6 +9,16 @@
 #   - Cross-account deployment roles in dev/test/prod
 # ============================================================
 
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 4.0"
+    }
+  }
+}
+
 data "aws_iam_policy_document" "codepipeline_assume" {
   statement {
     effect  = "Allow"
