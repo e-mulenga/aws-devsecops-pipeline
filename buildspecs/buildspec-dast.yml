@@ -1,3 +1,4 @@
+---
 # ============================================================
 # buildspec-dast.yml — Dynamic Application Security Testing
 # ============================================================
@@ -20,8 +21,14 @@ phases:
   build:
     commands:
       - echo "=== Running OWASP ZAP baseline scan ==="
-      - 'docker run --rm -v $(pwd):/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t "${TARGET_URL}" -r zap-report.html -J zap-report.json -x zap-report.xml -I -z "-config alert.maxinstances=5" || ZAP_EXIT=$?'
-      - HIGH_COUNT=$(python3 -c "import json; d=json.load(open('zap-report.json')); alerts=[a for a in d.get('site',[{}])[0].get('alerts',[]) if int(a.get('riskcode',0)) >= int('${RISK_THRESHOLD}')]; print(len(alerts)) if d else 0")
+      - |
+        docker run --rm -v $(pwd):/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable \
+          zap-baseline.py -t "${TARGET_URL}" -r zap-report.html -J zap-report.json \
+          -x zap-report.xml -I -z "-config alert.maxinfoinfos=10"
+      - |
+        HIGH_COUNT=$(python3 -c "import json; d=json.load(open('zap-report.json')); \
+        alerts=[a for a in d.get('site',[{}])[0].get('alerts',[]) \
+        if int(a.get('riskcode',0)) >= int('${RISK_THRESHOLD}')]; print(len(alerts))")
       - 'if [ "${HIGH_COUNT}" -gt 0 ]; then echo "DAST FAILED: ${HIGH_COUNT} HIGH/CRITICAL risk alerts found."; exit 1; fi'
       - echo "=== DAST passed — no HIGH/CRITICAL findings ==="
 artifacts:
