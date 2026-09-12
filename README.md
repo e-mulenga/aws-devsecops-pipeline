@@ -1,6 +1,6 @@
 # AWS DevSecOps Pipeline
 
-[![Security Scan](https://github.com/e-mulnga/aws-devsecops-pipeline/actions/workflows/security-scan.yml/badge.svg)](https://github.com/e-mulenga/aws-devsecops-pipeline/actions)
+[![Security Scan](https://github.com/e-mulenga/aws-devsecops-pipeline/actions/workflows/security-scan.yml/badge.svg)](https://github.com/e-mulenga/aws-devsecops-pipeline/actions)
 [![Terraform Plan](https://github.com/e-mulenga/aws-devsecops-pipeline/actions/workflows/terraform-plan.yml/badge.svg)](https://github.com/e-mulenga/aws-devsecops-pipeline/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Terraform](https://img.shields.io/badge/Terraform-%3E%3D1.6.0-623CE4.svg)](https://www.terraform.io)
