@@ -327,3 +327,7 @@ resource "aws_codestarnotifications_notification_rule" "pipeline" {
 
   tags = { Name = "${var.organization_name}-${var.environment}-pipeline-notifications" }
 }
+
+terraform {
+  required_version = ">= 1.5.0"
+}

@@ -217,3 +217,7 @@ resource "aws_codebuild_project" "main" {
 
   tags = { Stage = each.key, Purpose = "devsecops-pipeline" }
 }
+
+terraform {
+  required_version = ">= 1.5.0"
+}

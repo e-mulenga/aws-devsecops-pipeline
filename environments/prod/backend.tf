@@ -10,3 +10,7 @@ terraform {
     skip_credentials_validation = true
   }
 }
+
+terraform {
+  required_version = ">= 1.5.0"
+}
