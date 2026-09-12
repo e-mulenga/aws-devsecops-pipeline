@@ -11,6 +11,16 @@
 #   - Optional Lambda for Slack webhook delivery
 # ============================================================
 
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 4.0"
+    }
+  }
+}
+
 locals {
   name_prefix = "${var.organization_name}-${var.environment}"
 }
