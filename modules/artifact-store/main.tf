@@ -12,6 +12,16 @@
 #   - Access logging to a dedicated meta-log bucket
 # ============================================================
 
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 4.0"
+    }
+  }
+}
+
 resource "aws_s3_bucket" "artifacts" {
   bucket        = var.bucket_name
   force_destroy = var.environment != "prod"
