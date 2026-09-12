@@ -176,6 +176,16 @@ resource "aws_iam_role_policy" "slack_notifier" {
         Effect   = "Allow"
         Action   = ["kms:Decrypt"]
         Resource = [var.kms_key_arn]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = [aws_sqs_queue.slack_notifier_dlq[0].arn]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ec2:CreateNetworkInterface", "ec2:DescribeNetworkInterfaces", "ec2:DeleteNetworkInterface", "ec2:DescribeSubnets", "ec2:DescribeSecurityGroups", "ec2:DescribeVpcs"]
+        Resource = "*"
       }
     ]
   })
@@ -186,6 +196,13 @@ resource "aws_cloudwatch_log_group" "slack_notifier" {
   name              = "/aws/lambda/${local.name_prefix}-slack-notifier"
   retention_in_days = var.log_retention_days
   kms_key_id        = var.kms_key_arn
+}
+
+# ---- SQS DLQ for Lambda failures ----------------------------
+resource "aws_sqs_queue" "slack_notifier_dlq" {
+  count             = var.slack_webhook_secret_arn != "" ? 1 : 0
+  name              = "${local.name_prefix}-slack-notifier-dlq"
+  kms_master_key_id = var.kms_key_arn
 }
 
 resource "aws_lambda_function" "slack_notifier" {
@@ -200,6 +217,26 @@ resource "aws_lambda_function" "slack_notifier" {
 
   filename         = data.archive_file.slack_notifier[0].output_path
   source_code_hash = data.archive_file.slack_notifier[0].output_base64sha256
+
+  # VPC Configuration for CKV_AWS_117
+  dynamic "vpc_config" {
+    for_each = length(var.lambda_subnet_ids) > 0 ? [1] : []
+    content {
+      subnet_ids         = var.lambda_subnet_ids
+      security_group_ids = var.lambda_security_group_ids
+    }
+  }
+
+  # Concurrent execution limit for CKV_AWS_115
+  reserved_concurrent_executions = 10
+
+  # Code signing config for CKV_AWS_272
+  code_signing_config_arn = var.lambda_code_signing_config_arn != "" ? var.lambda_code_signing_config_arn : null
+
+  # DLQ for CKV_AWS_116
+  dead_letter_config {
+    target_arn = aws_sqs_queue.slack_notifier_dlq[0].arn
+  }
 
   environment {
     variables = {
