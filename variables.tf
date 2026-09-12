@@ -69,11 +69,6 @@ variable "kms_key_arn" {
   sensitive   = true
 }
 
-variable "cloudtrail_bucket_name" {
-  type        = string
-  description = "Centralised CloudTrail S3 bucket name from the Landing Zone."
-}
-
 # ---- Pipeline Source ----------------------------------------
 variable "source_provider" {
   type        = string
