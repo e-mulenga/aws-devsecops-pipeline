@@ -11,6 +11,16 @@
 #   - Tag immutability in all environments
 # ============================================================
 
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 4.0"
+    }
+  }
+}
+
 resource "aws_ecr_repository" "main" {
   for_each = toset(var.repository_names)
 
