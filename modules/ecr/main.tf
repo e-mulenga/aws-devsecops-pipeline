@@ -8,14 +8,14 @@
 #   - Image scanning on push (Amazon Inspector)
 #   - Lifecycle policy (retain N tagged images)
 #   - Cross-account pull access for workload accounts
-#   - Tag immutability in prod
+#   - Tag immutability in all environments
 # ============================================================
 
 resource "aws_ecr_repository" "main" {
   for_each = toset(var.repository_names)
 
   name                 = "${var.organization_name}-${var.environment}-${each.key}"
-  image_tag_mutability = var.environment == "prod" ? "IMMUTABLE" : "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   encryption_configuration {
     encryption_type = "KMS"
