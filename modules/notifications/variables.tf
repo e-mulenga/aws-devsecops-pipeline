@@ -36,10 +36,6 @@ variable "account_id" {
   type = string
 }
 
-variable "region" {
-  type = string
-}
-
 variable "lambda_subnet_ids" {
   type        = list(string)
   default     = []
