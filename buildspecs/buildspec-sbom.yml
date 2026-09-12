@@ -27,7 +27,8 @@ phases:
       - echo "=== Generating filesystem SBOM ==="
       - syft dir:. -o cyclonedx-json > sbom-source-cyclonedx.json
       - echo "SBOM generation complete."
-      - python3 -c "import json; d=json.load(open('sbom-cyclonedx.json')); print(f'Components: {len(d.get(\"components\",[]))}')"
+      - >-
+        python3 -c 'import json; d=json.load(open("sbom-cyclonedx.json")); print(f"Components: {len(d.get(\"components\", []))}")'
 artifacts:
   files:
     - sbom-cyclonedx.json

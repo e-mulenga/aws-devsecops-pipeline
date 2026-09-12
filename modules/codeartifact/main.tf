@@ -80,9 +80,9 @@ resource "aws_codeartifact_repository" "internal" {
   domain      = aws_codeartifact_domain.main.domain
   description = "Internal packages — proxies npm, pypi, and maven upstreams."
 
-  upstreams { repository_name = aws_codeartifact_repository.npm_upstream.repository }
-  upstreams { repository_name = aws_codeartifact_repository.pypi_upstream.repository }
-  upstreams { repository_name = aws_codeartifact_repository.maven_upstream.repository }
+  upstream { repository_name = aws_codeartifact_repository.npm_upstream.repository }
+  upstream { repository_name = aws_codeartifact_repository.pypi_upstream.repository }
+  upstream { repository_name = aws_codeartifact_repository.maven_upstream.repository }
 
   tags = { Name = "${var.domain_name}-internal" }
 }
