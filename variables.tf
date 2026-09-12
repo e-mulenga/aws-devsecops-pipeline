@@ -57,11 +57,6 @@ variable "prod_account_id" {
   description = "AWS Account ID for the Production workload account."
 }
 
-variable "shared_services_account_id" {
-  type        = string
-  description = "AWS Account ID for the Shared Services account."
-}
-
 # ---- Landing Zone Inputs ------------------------------------
 variable "kms_key_arn" {
   type        = string
