@@ -19,6 +19,9 @@ terraform {
   }
 }
 
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
 data "aws_iam_policy_document" "codepipeline_assume" {
   statement {
     effect  = "Allow"
@@ -81,19 +84,22 @@ resource "aws_iam_role_policy" "codepipeline" {
         Sid    = "CodeStarConnections"
         Effect = "Allow"
         Action = ["codestar-connections:UseConnection"]
-        Resource = ["*"]
+        Resource = ["arn:${var.partition}:codestar-connections:${var.region}:${var.account_id}:connection/*"]
       },
       {
         Sid    = "SNSApproval"
         Effect = "Allow"
         Action = ["sns:Publish"]
-        Resource = ["arn:${var.partition}:sns:${var.region}:${var.account_id}:*"]
+        Resource = ["arn:${var.partition}:sns:${var.region}:${var.account_id}:${var.organization_name}-${var.environment}-*"]
       },
       {
         Sid    = "IAMPassRole"
         Effect = "Allow"
         Action = ["iam:PassRole"]
-        Resource = ["*"]
+        Resource = [
+          "arn:${var.partition}:iam::${var.account_id}:role/${var.organization_name}-${var.environment}-codebuild-role",
+          "arn:${var.partition}:iam::${var.account_id}:role/${var.organization_name}-${var.environment}-cloudformation-role"
+        ]
         Condition = {
           StringEqualsIfExists = {
             "iam:PassedToService" = [
@@ -111,7 +117,7 @@ resource "aws_iam_role_policy" "codepipeline" {
           "codedeploy:GetDeploymentConfig", "codedeploy:GetApplicationRevision",
           "codedeploy:RegisterApplicationRevision"
         ]
-        Resource = ["*"]
+        Resource = ["arn:${var.partition}:codedeploy:${var.region}:${var.account_id}:application/*"]
       }
     ]
   })
@@ -164,7 +170,7 @@ resource "aws_iam_role_policy" "codebuild" {
           "ecr:DescribeRepositories", "ecr:ListImages",
           "ecr:StartImageScan", "ecr:DescribeImageScanFindings"
         ]
-        Resource = ["*"]
+        Resource = ["arn:${var.partition}:ecr:${var.region}:${var.account_id}:repository/${var.organization_name}/*"]
       },
       {
         Sid    = "SecretsManagerAccess"
@@ -188,7 +194,7 @@ resource "aws_iam_role_policy" "codebuild" {
         Resource = var.codeartifact_enabled ? [
           "arn:${var.partition}:codeartifact:${var.region}:${var.account_id}:domain/${var.codeartifact_domain_name}",
           "arn:${var.partition}:codeartifact:${var.region}:${var.account_id}:repository/${var.codeartifact_domain_name}/*"
-        ] : ["arn:${var.partition}:codeartifact:*:*:*"]
+        ] : ["arn:${var.partition}:codeartifact:${var.region}:${var.account_id}:*"]
       },
       {
         Sid    = "STSGetToken"
@@ -224,7 +230,7 @@ resource "aws_iam_role_policy" "codebuild" {
           "ec2:DescribeSubnets", "ec2:DescribeSecurityGroups", "ec2:DescribeVpcs",
           "ec2:CreateNetworkInterfacePermission"
         ]
-        Resource = ["*"]
+        Resource = ["arn:${var.partition}:ec2:${var.region}:${var.account_id}:network-interface/*"]
       },
       {
         Sid    = "SecurityHubFindings"
@@ -236,7 +242,7 @@ resource "aws_iam_role_policy" "codebuild" {
         Sid    = "InspectorScanResults"
         Effect = "Allow"
         Action = ["inspector2:ListFindings", "inspector2:GetFindingsReport"]
-        Resource = ["*"]
+        Resource = ["arn:${var.partition}:inspector2:${var.region}:${var.account_id}:resource/*"]
       }
     ]
   })
