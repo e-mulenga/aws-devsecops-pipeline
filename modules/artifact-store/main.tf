@@ -22,20 +22,7 @@ terraform {
   }
 }
 
-# checkov:skip=CKV_AWS_144: "Single-region artifact bucket does not require cross-region replication in this environment"
-resource "aws_s3_bucket" "example" {
-  # ... bucket configuration ...
-}
-
-# ---- Access Logging Bucket ----------------------------------
-# checkov:skip=CKV_AWS_144: "Single-region artifact bucket does not require cross-region replication in this environment"
-# checkov:skip=CKV2_AWS_6: "Public access block managed externally"
-# checkov:skip=CKV_AWS_21: "Versioning managed separately"
-# checkov:skip=CKV_AWS_145: "Encryption managed via bucket policy"
-# checkov:skip=CKV2_AWS_61: "Lifecycle configuration not required"
-# checkov:skip=CKV_AWS_144: "Cross-region replication not required"
-# checkov:skip=CKV2_AWS_62: "Event notifications not required"
-# checkov:skip=CKV_AWS_18: "Access logging managed centrally"
+# ---- Artifacts Bucket ---------------------------------------
 resource "aws_s3_bucket" "artifacts" {
   bucket        = var.bucket_name
   force_destroy = var.environment != "prod"
@@ -130,17 +117,6 @@ resource "aws_s3_bucket_notification" "artifacts" {
 }
 
 # ---- Access Logging Bucket ----------------------------------
-# checkov:skip=CKV_AWS_144: "Single-region artifact bucket does not require cross-region replication in this environment"
-# checkov:skip=CKV2_AWS_6: "Public access block managed externally"
-# checkov:skip=CKV_AWS_21: "Versioning managed separately"
-# checkov:skip=CKV_AWS_145: "Encryption managed via bucket policy"
-# checkov:skip=CKV2_AWS_61: "Lifecycle configuration not required"
-# checkov:skip=CKV_AWS_144: "Cross-region replication not required"
-# checkov:skip=CKV2_AWS_62: "Event notifications not required"
-# checkov:skip=CKV_AWS_18: "Access logging managed centrally"
-resource "aws_s3_bucket" "example" {
-  # ... bucket configuration ...
-}
 resource "aws_s3_bucket" "access_logs" {
   bucket        = "${var.bucket_name}-access-logs"
   force_destroy = var.environment != "prod"
