@@ -306,28 +306,33 @@ resource "aws_codepipeline" "main" {
 }
 
 # ---- CodePipeline Notification Rule -------------------------
-# resource "aws_codestarnotifications_notification_rule" "pipeline" {
-#   name        = "${var.organization_name}-${var.environment}-pipeline-notifications"
-#   resource    = aws_codepipeline.main.arn
-#   detail_type = "FULL"
+ resource "aws_codestarnotifications_notification_rule" "pipeline" {
+   name        = "${var.organization_name}-${var.environment}-pipeline-notifications"
+   resource    = aws_codepipeline.main.arn
+   detail_type = "FULL"
 
-#   event_type_ids = [
-#     "codepipeline-pipeline-pipeline-execution-succeeded",
-#     "codepipeline-pipeline-pipeline-execution-failed",
-#     "codepipeline-pipeline-pipeline-execution-canceled",
-#     "codepipeline-pipeline-manual-approval-needed",
-#     "codepipeline-pipeline-manual-approval-succeeded",
-#     "codepipeline-pipeline-manual-approval-failed"
-#   ]
+   event_type_ids = [
+     "codepipeline-pipeline-pipeline-execution-succeeded",
+     "codepipeline-pipeline-pipeline-execution-failed",
+     "codepipeline-pipeline-pipeline-execution-canceled",
+     "codepipeline-pipeline-manual-approval-needed",
+     "codepipeline-pipeline-manual-approval-succeeded",
+     "codepipeline-pipeline-manual-approval-failed"
+   ]
 
-#   target {
-#     type    = "SNS"
-#     address = var.approval_sns_topic_arn
-#   }
+   target {
+     type    = "SNS"
+     address = var.approval_sns_topic_arn
+   }
 
-#   tags = { Name = "${var.organization_name}-${var.environment}-pipeline-notifications" }
-# }
+   tags = { Name = "${var.organization_name}-${var.environment}-pipeline-notifications" }
+ }
 
 terraform {
-  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
 }

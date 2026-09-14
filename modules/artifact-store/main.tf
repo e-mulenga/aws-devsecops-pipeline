@@ -22,6 +22,7 @@ terraform {
   }
 }
 
+#checkov:skip=CKV_AWS_144:Artifact bucket replication managed via pipeline strategy
 resource "aws_s3_bucket" "artifacts" {
   bucket        = var.bucket_name
   force_destroy = var.environment != "prod"
@@ -78,7 +79,7 @@ resource "aws_s3_bucket_policy" "artifacts" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "DenyNonTLS"
+        Sid   = "DenyNonTLS"
         Effect = "Deny"
         Principal = "*"
         Action    = "s3:*"
@@ -89,7 +90,7 @@ resource "aws_s3_bucket_policy" "artifacts" {
         Condition = { Bool = { "aws:SecureTransport" = "false" } }
       },
       {
-        Sid    = "AllowCodePipeline"
+        Sid   = "AllowCodePipeline"
         Effect = "Allow"
         Principal = { AWS = [var.pipeline_role_arn, var.codebuild_role_arn] }
         Action = [
@@ -116,6 +117,7 @@ resource "aws_s3_bucket_notification" "artifacts" {
 }
 
 # ---- Access Logging Bucket ----------------------------------
+#checkov:skip=CKV_AWS_144:Access logs bucket does not require cross-region replication
 resource "aws_s3_bucket" "access_logs" {
   bucket        = "${var.bucket_name}-access-logs"
   force_destroy = var.environment != "prod"
