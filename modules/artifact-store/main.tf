@@ -22,7 +22,10 @@ terraform {
   }
 }
 
-#checkov:skip=CKV_AWS_144:Artifact bucket replication managed via pipeline strategy
+# checkov:skip=CKV_AWS_144: "Single-region artifact bucket does not require cross-region replication in this environment"
+resource "aws_s3_bucket" "example" {
+  # ... bucket configuration ...
+}
 resource "aws_s3_bucket" "artifacts" {
   bucket        = var.bucket_name
   force_destroy = var.environment != "prod"
@@ -117,7 +120,10 @@ resource "aws_s3_bucket_notification" "artifacts" {
 }
 
 # ---- Access Logging Bucket ----------------------------------
-#checkov:skip=CKV_AWS_144:Access logs bucket does not require cross-region replication
+# checkov:skip=CKV_AWS_144: "Single-region artifact bucket does not require cross-region replication in this environment"
+resource "aws_s3_bucket" "example" {
+  # ... bucket configuration ...
+}
 resource "aws_s3_bucket" "access_logs" {
   bucket        = "${var.bucket_name}-access-logs"
   force_destroy = var.environment != "prod"
