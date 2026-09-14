@@ -182,7 +182,13 @@ jobs:
     if: github.event_name == 'schedule'
     strategy:
       matrix:
-        environment: [dev, test, prod]
+        include:
+          - environment: dev
+            secret_suffix: DEV
+          - environment: test
+            secret_suffix: TEST
+          - environment: prod
+            secret_suffix: PROD
 
     steps:
       - uses: actions/checkout@v4
@@ -190,7 +196,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets[format('AWS_PLAN_ROLE_ARN_{0}', upper(matrix.environment))] }}
+          role-to-assume: ${{ secrets[format('AWS_PLAN_ROLE_ARN_{0}', matrix.secret_suffix)] }}
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: DriftDetection-${{ matrix.environment }}-${{ github.run_id }}
 
