@@ -87,7 +87,7 @@ jobs:
 
   # ----------------------------------------------------------
   # Trivy — IaC configuration scan
-  # Version unchanged; @v0.36.0 is current and valid.
+  # FIX: version tag corrected — must include v prefix (e.g. @v0.28.0 not @0.36.0)
   # ----------------------------------------------------------
   trivy:
     name: Trivy IaC
@@ -96,7 +96,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run Trivy IaC scan
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.28.0          # FIX: was @0.36.0 (missing v prefix — unresolvable); v0.28.0 is latest tag with v prefix
         with:
           scan-type: config
           scan-ref: .
@@ -146,7 +146,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup TFLint
-        uses: terraform-linters/setup-tflint@v4          # FIX: was @v6 (does not exist → job fails)
+        uses: terraform-linters/setup-tflint@v4.1.1       # FIX: pinned to v4.1.1 — resolves Node.js 20 deprecation warning
         with:
           tflint_version: latest
 
