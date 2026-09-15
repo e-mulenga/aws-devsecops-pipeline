@@ -33,6 +33,44 @@ resource "aws_s3_bucket" "artifacts" {
   }
 }
 
+# CKV_AWS_144 — cross-region replication for artifacts bucket
+# Replicates pipeline artifacts to a secondary region for DR and audit retention.
+# Requires: var.replication_role_arn, var.replication_destination_bucket_arn,
+#           var.replication_destination_region — all supplied from the root module.
+resource "aws_s3_bucket_replication_configuration" "artifacts" {
+  bucket = aws_s3_bucket.artifacts.id
+  role   = var.replication_role_arn
+
+  rule {
+    id     = "replicate-artifacts"
+    status = "Enabled"
+
+    filter {}   # empty filter = replicate all objects
+
+    destination {
+      bucket        = var.replication_destination_bucket_arn
+      storage_class = "STANDARD_IA"   # cheaper for DR copies
+
+      encryption_configuration {
+        replica_kms_key_id = var.replication_destination_kms_key_arn
+      }
+    }
+
+    source_selection_criteria {
+      sse_kms_encrypted_objects {
+        status = "Enabled"   # required when source objects are KMS-encrypted
+      }
+    }
+
+    delete_marker_replication {
+      status = "Enabled"   # replicate deletions for full audit trail
+    }
+  }
+
+  # Versioning must be enabled before replication can be configured
+  depends_on = [aws_s3_bucket_versioning.artifacts]
+}
+
 resource "aws_s3_bucket_versioning" "artifacts" {
   bucket = aws_s3_bucket.artifacts.id
   versioning_configuration { status = "Enabled" }
@@ -123,6 +161,41 @@ resource "aws_s3_bucket" "access_logs" {
   tags          = { Name = "${var.bucket_name}-access-logs", Purpose = "s3-access-logs" }
 }
 
+# CKV_AWS_144 — cross-region replication for access logs bucket
+# Replicates access logs to the secondary region for compliance and forensic retention.
+resource "aws_s3_bucket_replication_configuration" "access_logs" {
+  bucket = aws_s3_bucket.access_logs.id
+  role   = var.replication_role_arn
+
+  rule {
+    id     = "replicate-access-logs"
+    status = "Enabled"
+
+    filter {}   # replicate all objects
+
+    destination {
+      bucket        = var.replication_destination_logs_bucket_arn
+      storage_class = "STANDARD_IA"
+
+      encryption_configuration {
+        replica_kms_key_id = var.replication_destination_kms_key_arn
+      }
+    }
+
+    source_selection_criteria {
+      sse_kms_encrypted_objects {
+        status = "Enabled"
+      }
+    }
+
+    delete_marker_replication {
+      status = "Enabled"
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.access_logs]
+}
+
 resource "aws_s3_bucket_public_access_block" "access_logs" {
   bucket                  = aws_s3_bucket.access_logs.id
   block_public_acls       = true
@@ -185,3 +258,26 @@ resource "aws_cloudwatch_log_group" "pipeline" {
 # ---- Data sources for dynamic values -----------------------
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
+# ---- Replication Variables (added for CKV_AWS_144) ----------
+# These are declared here for module completeness.
+# Pass values from the root module — never hardcode ARNs.
+
+variable "replication_role_arn" {
+  description = "IAM role ARN that S3 assumes to replicate objects to the destination bucket. Must have s3:ReplicateObject, s3:ReplicateDelete, and KMS permissions."
+  type        = string
+}
+
+variable "replication_destination_bucket_arn" {
+  description = "ARN of the destination S3 bucket (secondary region) for artifacts replication."
+  type        = string
+}
+
+variable "replication_destination_logs_bucket_arn" {
+  description = "ARN of the destination S3 bucket (secondary region) for access logs replication."
+  type        = string
+}
+
+variable "replication_destination_kms_key_arn" {
+  description = "ARN of the KMS key in the destination region used to encrypt replicated objects."
+  type        = string
+}
