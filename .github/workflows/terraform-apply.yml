@@ -2,11 +2,13 @@
 # GitHub Actions — Terraform Apply
 # ============================================================
 # Triggered on merge to main.
-# DEV:  auto-apply
-# TEST: requires 1 reviewer approval
+# DEV: auto-apply
+# TEST: requires 1 reviewer approval (GitHub Environment rule)
 # PROD: requires 2 reviewers + 15-min wait timer
 #
 # Scheduled drift detection runs Mon–Fri at 06:00 UTC.
+#
+# Auth: OIDC (no long-lived AWS keys stored in GitHub)
 # ============================================================
 
 name: Terraform Apply
@@ -34,13 +36,19 @@ on:
     - cron: "0 6 * * 1-5"    # Drift detection Mon–Fri 06:00 UTC
 
 permissions:
-  id-token: write
+  id-token: write   # required for OIDC token exchange
   contents: read
   pull-requests: write
 
 env:
   TF_VERSION: "1.7.5"
-  AWS_REGION:  "af-south-1"
+  AWS_REGION: "af-south-1"
+
+# FIX: added concurrency group — prevents two apply jobs running
+# simultaneously against the same environment (state lock race).
+concurrency:
+  group: terraform-apply-${{ github.ref }}
+  cancel-in-progress: false   # never cancel an in-progress apply; queue instead
 
 jobs:
   # ---- Deploy DEV (auto on merge) ---------------------------
@@ -61,15 +69,36 @@ jobs:
           role-session-name: GitHubActions-Apply-Dev-${{ github.run_id }}
           role-duration-seconds: 3600
 
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-        with: { terraform_version: "${{ env.TF_VERSION }}" }
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
-        run: terraform init -backend-config="environments/dev/backend.tf" -input=false -reconfigure
+        run: |
+          terraform init \
+            -backend-config="environments/dev/backend.tf" \
+            -input=false \
+            -reconfigure
 
       - name: Terraform Plan
-        run: terraform plan -var-file="environments/dev/terraform.tfvars" -out=dev.tfplan -input=false
+        run: |
+          terraform plan \
+            -var-file="environments/dev/terraform.tfvars" \
+            -out=dev.tfplan \
+            -input=false \
+            -no-color
+
+      # FIX: upload plan artifact so it can be inspected if apply fails
+      - name: Upload DEV plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-tfplan-${{ github.sha }}
+          path: dev.tfplan
+          retention-days: 3
 
       - name: Terraform Apply
         if: github.event.inputs.action != 'plan-only'
@@ -79,7 +108,9 @@ jobs:
         run: |
           echo "## ✅ DEV Deployment Complete" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          terraform output -json 2>/dev/null | jq -r 'to_entries[] | "- **\(.key)**: \(.value.value)"' >> $GITHUB_STEP_SUMMARY || true
+          terraform output -json 2>/dev/null \
+            | jq -r 'to_entries[] | "- **\(.key)**: \(.value.value)"' \
+            >> $GITHUB_STEP_SUMMARY || true
 
   # ---- Deploy TEST (requires 1 approval) --------------------
   deploy-test:
@@ -103,15 +134,36 @@ jobs:
           role-session-name: GitHubActions-Apply-Test-${{ github.run_id }}
           role-duration-seconds: 3600
 
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-        with: { terraform_version: "${{ env.TF_VERSION }}" }
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
-        run: terraform init -backend-config="environments/test/backend.tf" -input=false -reconfigure
+        run: |
+          terraform init \
+            -backend-config="environments/test/backend.tf" \
+            -input=false \
+            -reconfigure
 
       - name: Terraform Plan
-        run: terraform plan -var-file="environments/test/terraform.tfvars" -out=test.tfplan -input=false
+        run: |
+          terraform plan \
+            -var-file="environments/test/terraform.tfvars" \
+            -out=test.tfplan \
+            -input=false \
+            -no-color
+
+      # FIX: upload plan artifact
+      - name: Upload TEST plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-tfplan-${{ github.sha }}
+          path: test.tfplan
+          retention-days: 3
 
       - name: Terraform Apply
         if: github.event.inputs.action != 'plan-only'
@@ -144,30 +196,59 @@ jobs:
           role-session-name: GitHubActions-Apply-Prod-${{ github.run_id }}
           role-duration-seconds: 3600
 
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-        with: { terraform_version: "${{ env.TF_VERSION }}" }
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
-        run: terraform init -backend-config="environments/prod/backend.tf" -input=false -reconfigure
+        run: |
+          terraform init \
+            -backend-config="environments/prod/backend.tf" \
+            -input=false \
+            -reconfigure
 
+      # FIX: was planning twice — once with -detailed-exitcode (no output file)
+      # then again with -out= to get the plan file. The second plan could differ
+      # from the first if infra changed between the two runs.
+      # Fix: single plan with both -out= and -detailed-exitcode together.
       - name: Terraform Plan
         id: plan
         run: |
+          set +e
           terraform plan \
             -var-file="environments/prod/terraform.tfvars" \
-            -detailed-exitcode -input=false
-        continue-on-error: true
+            -out=prod.tfplan \
+            -detailed-exitcode \
+            -input=false \
+            -no-color
+          echo "exitcode=$?" >> $GITHUB_OUTPUT
+          set -e
+
+      - name: Upload PROD plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-tfplan-${{ github.sha }}
+          path: prod.tfplan
+          retention-days: 5
 
       - name: Skip if no changes
         if: steps.plan.outputs.exitcode == '0'
         run: echo "No changes detected — skipping apply." >> $GITHUB_STEP_SUMMARY
 
+      - name: Fail on plan error
+        if: steps.plan.outputs.exitcode == '1'
+        run: |
+          echo "## ❌ Terraform Plan Failed" >> $GITHUB_STEP_SUMMARY
+          exit 1
+
+      # FIX: apply uses the saved plan file from the single plan step above
       - name: Terraform Apply
         if: steps.plan.outputs.exitcode == '2' && github.event.inputs.action != 'plan-only'
-        run: |
-          terraform plan -var-file="environments/prod/terraform.tfvars" -out=prod.tfplan -input=false
-          terraform apply -auto-approve -input=false prod.tfplan
+        run: terraform apply -auto-approve -input=false prod.tfplan
 
       - name: Summary
         if: steps.plan.outputs.exitcode == '2'
@@ -189,6 +270,7 @@ jobs:
             secret_suffix: TEST
           - environment: prod
             secret_suffix: PROD
+      fail-fast: false   # check all environments even if one drifts
 
     steps:
       - uses: actions/checkout@v4
@@ -202,18 +284,27 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-        with: { terraform_version: "${{ env.TF_VERSION }}" }
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
-        run: terraform init -backend-config="environments/${{ matrix.environment }}/backend.tf" -input=false -reconfigure
+        run: |
+          terraform init \
+            -backend-config="environments/${{ matrix.environment }}/backend.tf" \
+            -input=false \
+            -reconfigure
 
       - name: Detect Drift
         id: drift
         run: |
+          set +e
           terraform plan \
             -var-file="environments/${{ matrix.environment }}/terraform.tfvars" \
-            -detailed-exitcode -input=false -no-color 2>&1 | tee drift-output.txt
+            -detailed-exitcode \
+            -input=false \
+            -no-color 2>&1 | tee drift-output.txt
           echo "exitcode=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          set -e
 
       - name: Alert on drift
         if: steps.drift.outputs.exitcode == '2'
