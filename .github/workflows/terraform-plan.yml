@@ -2,7 +2,7 @@
 # GitHub Actions — Terraform Plan (PR Gate)
 # ============================================================
 # Runs on every PR targeting main.
-# Authenticates via OIDC (no long-lived AWS keys).
+# Authenticates via IAM user access keys stored in GitHub Secrets.
 # Posts terraform plan output as a PR comment per environment.
 # Runs tfsec + checkov + gitleaks as inline security gates.
 #
@@ -28,7 +28,6 @@ concurrency:
   cancel-in-progress: true   # safe to cancel plans (unlike applies)
 
 permissions:
-  id-token: write    # OIDC token exchange
   contents: read
   pull-requests: write    # post plan comments to PR
   security-events: write    # upload SARIF to GitHub Security tab
@@ -144,13 +143,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials (IAM user)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets[format('AWS_PLAN_ROLE_ARN_{0}', matrix.secret_suffix)] }}
-          aws-region: ${{ env.AWS_REGION }}
-          role-session-name: GitHubActions-Plan-${{ matrix.environment }}-${{ github.run_id }}
-          role-duration-seconds: 1800
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Verify AWS identity
         run: aws sts get-caller-identity

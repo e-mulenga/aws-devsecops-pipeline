@@ -8,7 +8,8 @@
 #
 # Scheduled drift detection runs Mon–Fri at 06:00 UTC.
 #
-# Auth: OIDC (no long-lived AWS keys stored in GitHub)
+# Auth: IAM user access keys stored in GitHub Secrets
+#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
 # ============================================================
 
 name: Terraform Apply
@@ -36,7 +37,6 @@ on:
     - cron: "0 6 * * 1-5"    # Drift detection Mon–Fri 06:00 UTC
 
 permissions:
-  id-token: write   # required for OIDC token exchange
   contents: read
   pull-requests: write
 
@@ -61,13 +61,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials (IAM user)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN_DEV }}
-          aws-region: ${{ env.AWS_REGION }}
-          role-session-name: GitHubActions-Apply-Dev-${{ github.run_id }}
-          role-duration-seconds: 3600
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Verify AWS identity
         run: aws sts get-caller-identity
@@ -126,13 +125,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials (IAM user)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN_TEST }}
-          aws-region: ${{ env.AWS_REGION }}
-          role-session-name: GitHubActions-Apply-Test-${{ github.run_id }}
-          role-duration-seconds: 3600
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Verify AWS identity
         run: aws sts get-caller-identity
@@ -188,13 +186,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials (IAM user)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN_PROD }}
-          aws-region: ${{ env.AWS_REGION }}
-          role-session-name: GitHubActions-Apply-Prod-${{ github.run_id }}
-          role-duration-seconds: 3600
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Verify AWS identity
         run: aws sts get-caller-identity
@@ -275,12 +272,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials (IAM user)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets[format('AWS_PLAN_ROLE_ARN_{0}', matrix.secret_suffix)] }}
-          aws-region: ${{ env.AWS_REGION }}
-          role-session-name: DriftDetection-${{ matrix.environment }}-${{ github.run_id }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
