@@ -38,14 +38,14 @@ jobs:
       - uses: actions/checkout@v4.2.2
 
       - name: Run tfsec
-        uses: aquasecurity/tfsec-action@v1.0.3
+        uses: aquasecurity/tfsec-action@master
         with:
           sarif_file: tfsec.sarif
           soft_fail: true
           format: sarif
 
       - name: Upload tfsec SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3.29.5
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: tfsec.sarif
@@ -58,7 +58,7 @@ jobs:
       - uses: actions/checkout@v4.2.2
 
       - name: Run Checkov
-        uses: bridgecrewio/checkov-action@v12.3.2
+        uses: bridgecrewio/checkov-action@master
         with:
           directory: .
           framework: terraform
@@ -68,7 +68,7 @@ jobs:
           download_external_modules: false
 
       - name: Upload Checkov SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3.29.5
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: checkov.sarif
@@ -81,7 +81,7 @@ jobs:
       - uses: actions/checkout@v4.2.2
 
       - name: Run Trivy IaC scan
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@master
         with:
           scan-type: config
           scan-ref: .
@@ -91,7 +91,7 @@ jobs:
           exit-code: "0"
 
       - name: Upload Trivy SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3.29.5
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: trivy.sarif
@@ -106,7 +106,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2.3.9
+        uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
@@ -118,7 +118,7 @@ jobs:
       - uses: actions/checkout@v4.2.2
 
       - name: Setup TFLint
-        uses: terraform-linters/setup-tflint@v4.1.1
+        uses: terraform-linters/setup-tflint@v4
         with:
           tflint_version: latest
 
