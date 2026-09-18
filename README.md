@@ -40,7 +40,7 @@
 
 This repository delivers a **production-grade, security-first CI/CD pipeline** built on AWS CodePipeline and CodeBuild, with eleven distinct stages — six of which are dedicated security gates. Every commit to the main branch triggers an automated sequence that detects secrets, runs SAST, builds and scans container images, generates an SBOM, performs DAST, and deploys progressively through dev, test, and production with mandatory human approval gates.
 
-Built as **position 3 of 6** in the Enterprise Cloud Platform Portfolio, this pipeline sits on the account structure established by the [AWS Enterprise Landing Zone](https://github.com/your-org/aws-enterprise-landing-zone-terraform) and uses reusable modules from the [Terraform Enterprise Module Library](https://github.com/your-org/terraform-enterprise-module-library). Its outputs — standardised deployments, container images, and Security Hub findings — are consumed directly by the [Cloud Security Operations Centre](https://github.com/your-org/aws-cloud-security-operations-center) and the [Secure EKS Platform](https://github.com/your-org/aws-secure-eks-platform).
+Built as **position 3 of 6** in the Enterprise Cloud Platform Portfolio, this pipeline sits on the account structure established by the [AWS Enterprise Landing Zone](https://github.com/e-mulenga/aws-enterprise-landing-zone-terraform) and uses reusable modules from the [Terraform Enterprise Module Library](https://github.com/e-mulenga/terraform-enterprise-module-library). Its outputs — standardised deployments, container images, and Security Hub findings — are consumed directly by the [Cloud Security Operations Centre](https://github.com/e-mulenga/aws-cloud-security-operations-center) and the [Secure EKS Platform](https://github.com/e-mulenga/aws-secure-eks-platform).
 
 **Key outcomes:**
 - Zero-touch promotion from commit to production with six automated security gates
@@ -417,7 +417,7 @@ cp terraform.tfvars.example environments/prod/terraform.tfvars
 
 ```bash
 # From the landing zone scripts (already created)
-GITHUB_ORG=your-org GITHUB_REPO=aws-devsecops-pipeline \
+GITHUB_ORG=e-mulenga GITHUB_REPO=aws-devsecops-pipeline \
 ENV=prod AWS_ACCOUNT_ID=<pipeline_account_id> \
   bash ../aws-enterprise-landing-zone-terraform/scripts/setup-oidc.sh
 ```
@@ -826,12 +826,12 @@ flowchart TD
 
 | Repository | Relationship | Integration |
 |---|---|---|
-| **[aws-enterprise-landing-zone](https://github.com/your-org/aws-enterprise-landing-zone-terraform)** | Upstream — account IDs, KMS keys | `terraform output` feeds tfvars |
-| **[terraform-enterprise-module-library](https://github.com/your-org/terraform-enterprise-module-library)** | Upstream — reusable modules | VPC, IAM, KMS, S3 modules used |
-| **[aws-devsecops-pipeline](https://github.com/your-org/aws-devsecops-pipeline)** | **YOU ARE HERE** | — |
-| **[aws-cloud-security-operations-center](https://github.com/your-org/aws-cloud-security-operations-center)** | Downstream — consumes Security Hub findings | `alerts_topic_arn` output consumed |
-| **[aws-secure-eks-platform](https://github.com/your-org/aws-secure-eks-platform)** | Downstream — receives container images | `ecr_repository_urls` output consumed |
-| **[multi-cloud-governance](https://github.com/your-org/multi-cloud-governance)** | Downstream — unified posture | Security Hub findings aggregated |
+| **[aws-enterprise-landing-zone](https://github.com/e-mulenga/aws-enterprise-landing-zone-terraform)** | Upstream — account IDs, KMS keys | `terraform output` feeds tfvars |
+| **[terraform-enterprise-module-library](https://github.com/e-mulenga/terraform-enterprise-module-library)** | Upstream — reusable modules | VPC, IAM, KMS, S3 modules used |
+| **[aws-devsecops-pipeline](https://github.com/e-mulenga/aws-devsecops-pipeline)** | **YOU ARE HERE** | — |
+| **[aws-cloud-security-operations-center](https://github.com/e-mulenga/aws-cloud-security-operations-center)** | Downstream — consumes Security Hub findings | `alerts_topic_arn` output consumed |
+| **[aws-secure-eks-platform](https://github.com/e-mulenga/aws-secure-eks-platform)** | Downstream — receives container images | `ecr_repository_urls` output consumed |
+| **[multi-cloud-governance](https://github.com/e-mulenga/multi-cloud-governance)** | Downstream — unified posture | Security Hub findings aggregated |
 
 ---
 
