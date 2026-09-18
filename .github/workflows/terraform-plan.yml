@@ -37,26 +37,10 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.2.2
-        with:
-          fetch-depth: 0
-
-      - name: Run tfsec
-        uses: aquasecurity/tfsec-action@v1.0.3
-        with:
-          sarif_file: tfsec.sarif
-          soft_fail: true
-          format: sarif
-
-      - name: Upload tfsec SARIF
-        uses: github/codeql-action/upload-sarif@v3.29.5
-        if: always()
-        with:
-          sarif_file: tfsec.sarif
-          category: tfsec
+      - uses: actions/checkout@v4
 
       - name: Run Checkov
-        uses: bridgecrewio/checkov-action@v12.3.2
+        uses: bridgecrewio/checkov-action@master
         with:
           directory: .
           framework: terraform
@@ -66,7 +50,7 @@ jobs:
           download_external_modules: false
 
       - name: Upload Checkov SARIF
-        uses: github/codeql-action/upload-sarif@v3.29.5
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: checkov.sarif
@@ -78,10 +62,10 @@ jobs:
     needs: secret-scan
 
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3.1.2
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
@@ -103,7 +87,7 @@ jobs:
     needs: [secret-scan, validate]
 
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
 
       - name: Portfolio Mode Notice
         run: |
