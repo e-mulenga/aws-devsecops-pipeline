@@ -162,6 +162,19 @@ terraform {
   }
 }
 
+resource "aws_cloudwatch_log_group" "projects" {
+  for_each = local.projects
+
+  name = "/aws/codebuild/${each.key}"
+
+  retention_in_days = var.log_retention_days
+
+
+  tags = {
+    Name = "${var.organization_name}-${var.environment}-${each.key}-logs"
+  }
+}
+
 resource "aws_codebuild_project" "main" {
   for_each = local.projects
 

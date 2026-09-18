@@ -26,6 +26,18 @@ terraform {
   backend "s3" {}
 }
 
+# provider alias because service not yet GA in my primary region af-south-1
+
+provider "aws" {
+  alias  = "codeartifact"
+  region = "eu-west-1"
+}
+provider "aws" {
+
+  alias  = "cicd"
+  region = "eu-west-1"
+}
+
 # ---- Primary region provider (pipeline account) -------------
 provider "aws" {
   region = var.aws_region

@@ -1,16 +1,137 @@
+# ============================================================
+# deploy.yml — Hardened OIDC Deployment Workflow
+# ============================================================
+# SECURITY: Uses OIDC federation — NO long-lived AWS credentials
+# stored in GitHub. AWS_ROLE_ARN secret stores only the IAM role
+# ARN (not an access key or secret).
+#
+# OIDC flow:
+#   1. GitHub generates a signed OIDC token for this workflow run
+#   2. AWS IAM validates the token against the OIDC provider trust
+#   3. AWS issues a short-lived STS credential (expires ≤ 1 hour)
+#   4. Credentials are injected into the runner environment variables
+#   5. Token is NEVER written to logs or artifacts
+#
+# Required GitHub Secrets (Role ARNs only — NOT credentials):
+#   AWS_ROLE_ARN_DEV   = arn:aws:iam::<dev-account>:role/<role-name>
+#   AWS_ROLE_ARN_TEST  = arn:aws:iam::<test-account>:role/<role-name>
+#   AWS_ROLE_ARN_PROD  = arn:aws:iam::<prod-account>:role/<role-name>
+# ============================================================
+
 name: Deploy to AWS
 
 on:
   push:
     branches: [ main ]
+    paths:
+      - "**.tf"
+      - "**.py"
+      - "buildspecs/**"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options: [ dev, test, prod ]
+        default: dev
 
+# ---- Minimum required permissions --------------------------
+# id-token: write  — REQUIRED for OIDC token request
+# contents: read   — checkout repository code
+# All others default to none (principle of least privilege)
 permissions:
   id-token: write
   contents: read
 
+env:
+  TF_VERSION: "1.7.5"
+  AWS_REGION: "af-south-1"
+
 jobs:
-  deploy:
+  # ---- Deploy DEV (auto on push to main) -------------------
+  deploy-dev:
+    name: Deploy → DEV
     runs-on: ubuntu-latest
+    environment: dev
+
+    # Only run on push events or when dev is explicitly selected
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # ---- OIDC Authentication (no stored credentials) -----
+      - name: Authenticate to AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_DEV }}
+          aws-region: ${{ env.AWS_REGION }}
+
+          # role-session-name appears in CloudTrail for full audit trail
+          # Format: GitHubActions-<repo>-<run_id> makes incidents traceable
+          role-session-name: GitHubActions-${{ github.event.repository.name }}-${{ github.run_id }}
+
+          # Maximum credential lifetime — reduce for short deployments
+          role-duration-seconds: 3600
+
+          # Prevents AWS account ID from appearing in workflow logs
+          mask-aws-account-id: true
+
+      # ---- Verify identity (confirms OIDC worked) ----------
+      - name: Verify AWS Identity
+        run: |
+          echo "Verifying AWS identity..."
+          aws sts get-caller-identity
+          echo "✅ OIDC authentication successful"
+
+      # ---- Setup Terraform ---------------------------------
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      # ---- Deploy ------------------------------------------
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="environments/dev/backend.tf" \
+            -input=false \
+            -reconfigure
+
+      - name: Terraform Plan
+        run: |
+          terraform plan \
+            -var-file="environments/dev/terraform.tfvars" \
+            -out=dev.tfplan \
+            -input=false
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -input=false dev.tfplan
+
+      - name: Deployment Summary
+        run: |
+          echo "## ✅ DEV Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- **Repo:** ${{ github.repository }}"             >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}"                  >> $GITHUB_STEP_SUMMARY
+          echo "- **Run:** ${{ github.run_id }}"                  >> $GITHUB_STEP_SUMMARY
+          echo "- **Auth:** OIDC (no stored credentials)"         >> $GITHUB_STEP_SUMMARY
+
+  # ---- Deploy TEST (requires manual approval) --------------
+  deploy-test:
+    name: Deploy → TEST
+    runs-on: ubuntu-latest
+    environment: test          # Requires reviewer approval in GitHub Environments
+    needs: deploy-dev
+    if: |
+      always() &&
+      needs.deploy-dev.result == 'success' &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'test'))
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -18,8 +139,84 @@ jobs:
       - name: Authenticate to AWS via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: af-south-1
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_TEST }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-${{ github.event.repository.name }}-${{ github.run_id }}
+          role-duration-seconds: 3600
+          mask-aws-account-id: true
 
       - name: Verify AWS Identity
         run: aws sts get-caller-identity
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "${{ env.TF_VERSION }}" }
+
+      - name: Terraform Init
+        run: terraform init -backend-config="environments/test/backend.tf" -input=false -reconfigure
+
+      - name: Terraform Plan
+        run: terraform plan -var-file="environments/test/terraform.tfvars" -out=test.tfplan -input=false
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -input=false test.tfplan
+
+  # ---- Deploy PROD (requires 2 approvals + wait timer) -----
+  deploy-prod:
+    name: Deploy → PROD
+    runs-on: ubuntu-latest
+    environment: production     # Requires 2 reviewers + 15-minute wait timer
+    needs: deploy-test
+    if: |
+      always() &&
+      needs.deploy-test.result == 'success' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.environment == 'prod'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-${{ github.event.repository.name }}-${{ github.run_id }}
+          role-duration-seconds: 3600
+          mask-aws-account-id: true
+
+      - name: Verify AWS Identity
+        run: aws sts get-caller-identity
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "${{ env.TF_VERSION }}" }
+
+      - name: Terraform Init
+        run: terraform init -backend-config="environments/prod/backend.tf" -input=false -reconfigure
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan \
+            -var-file="environments/prod/terraform.tfvars" \
+            -detailed-exitcode \
+            -out=prod.tfplan \
+            -input=false
+        continue-on-error: true
+
+      - name: Skip if no changes
+        if: steps.plan.outputs.exitcode == '0'
+        run: echo "No changes to apply — infrastructure is up to date." >> $GITHUB_STEP_SUMMARY
+
+      - name: Terraform Apply
+        if: steps.plan.outputs.exitcode == '2'
+        run: terraform apply -auto-approve -input=false prod.tfplan
+
+      - name: Deployment Summary
+        if: steps.plan.outputs.exitcode == '2'
+        run: |
+          echo "## ✅ PROD Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run:** ${{ github.run_id }}"  >> $GITHUB_STEP_SUMMARY

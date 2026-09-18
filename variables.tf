@@ -289,3 +289,15 @@ variable "pipeline_alarm_threshold_failures" {
   description = "Number of pipeline failures before triggering a CloudWatch alarm."
   default     = 3
 }
+
+variable "kms_key_arn" {
+  type        = string
+  description = "KMS key ARN from the Landing Zone for encrypting pipeline artifacts."
+  sensitive   = true
+}
+
+variable "log_retention_days" {
+  type        = number
+  description = "CloudWatch Logs retention in days."
+  default     = 90
+}

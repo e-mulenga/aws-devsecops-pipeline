@@ -40,7 +40,7 @@ module "pipeline_iam" {
   artifact_bucket_name       = var.artifact_bucket_name
   kms_key_arn                = var.kms_key_arn
   dev_account_id             = var.dev_account_id
-  test_account_id            = var.test_account_id
+  test_account_id            = var.test_account_id # Used for cross-account access to the test account for integration testing
   prod_account_id            = var.prod_account_id
   codeartifact_domain_name   = var.codeartifact_domain_name
   codeartifact_enabled       = var.codeartifact_enabled
@@ -77,6 +77,10 @@ module "ecr" {
 
 # ---- 4. CodeArtifact (Package Registry) ---------------------
 module "codeartifact" {
+  providers = {
+    aws = aws.codeartifact
+  }
+
   source = "./modules/codeartifact"
   count  = var.codeartifact_enabled ? 1 : 0
 

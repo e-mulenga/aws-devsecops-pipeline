@@ -6,13 +6,8 @@ terraform {
     key                 = "devsecops-pipeline/test/terraform.tfstate"
     region              = "af-south-1"
     encrypt             = true
-    kms_key_id          = "alias/terraform-state-key-test"
-    dynamodb_table      = "REPLACE-ME-test-terraform-state-lock"
+    use_lockfile        = true # Enables native S3 state locking
     skip_region_validation = true
     skip_credentials_validation = true
   }
-}
-
-terraform {
-  required_version = ">= 1.5.0"
 }

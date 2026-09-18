@@ -26,11 +26,11 @@ variable "slack_webhook_secret_arn" {
   sensitive = true
 }
 
-//variable "log_retention_days" {
-//  type    = number
-//  default = 365
-//  description = "CloudWatch log retention period in days. Must be at least 365 to comply with CKV_AWS_338."
-//}
+variable "log_retention_days" {
+  type    = number
+  default = 365
+  description = "CloudWatch log retention period in days. Must be at least 365 to comply with CKV_AWS_338."
+}
 
 variable "account_id" {
   type = string

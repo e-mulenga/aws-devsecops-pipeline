@@ -56,25 +56,25 @@ variable "security_group_ids" {
   default = []
 }
 
-# variable "log_retention_days" {
-#   type    = number
-#   default = 90
-# }
+variable "log_retention_days" {
+  type    = number
+  default = 90
+}
 
 variable "ecr_repository_urls" {
   type    = map(string)
   default = {}
 }
 
-# variable "iac_scan_enabled" {
-#   type    = bool
-#   default = true
-# }
+variable "iac_scan_enabled" {
+  type    = bool
+  default = true
+}
 
-# variable "dependency_scan_enabled" {
-#   type    = bool
-#   default = true
-# }
+variable "dependency_scan_enabled" {
+  type    = bool
+  default = true
+}
 
 variable "sast_failure_action" {
   type    = string
@@ -106,4 +106,19 @@ variable "test_account_id" {
 
 variable "prod_account_id" {
   type = string
+}
+
+variable "dast_enabled" {
+  type    = bool
+  default = true
+}
+
+variable "sbom_enabled" {
+  type    = bool
+  default = true
+}
+
+variable "secret_scan_enabled" {
+  type    = bool
+  default = true
 }

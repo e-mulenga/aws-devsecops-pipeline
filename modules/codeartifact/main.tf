@@ -18,6 +18,10 @@ resource "aws_codeartifact_domain" "main" {
   domain         = var.domain_name
   encryption_key = var.kms_key_arn
 
+  lifecycle {
+    ignore_changes = [ encryption_key ]
+  }
+
   tags = { Name = var.domain_name }
 }
 
