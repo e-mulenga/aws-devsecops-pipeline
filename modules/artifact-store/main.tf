@@ -32,11 +32,11 @@ resource "aws_s3_bucket_replication_configuration" "artifacts" {
     id     = "replicate-artifacts"
     status = "Enabled"
 
-    filter {}   # empty filter = replicate all objects
+    filter {} # empty filter = replicate all objects
 
     destination {
       bucket        = var.replication_destination_bucket_arn
-      storage_class = "STANDARD_IA"   # cheaper for DR copies
+      storage_class = "STANDARD_IA" # cheaper for DR copies
 
       encryption_configuration {
         replica_kms_key_id = var.replication_destination_kms_key_arn
@@ -45,12 +45,12 @@ resource "aws_s3_bucket_replication_configuration" "artifacts" {
 
     source_selection_criteria {
       sse_kms_encrypted_objects {
-        status = "Enabled"   # required when source objects are KMS-encrypted
+        status = "Enabled" # required when source objects are KMS-encrypted
       }
     }
 
     delete_marker_replication {
-      status = "Enabled"   # replicate deletions for full audit trail
+      status = "Enabled" # replicate deletions for full audit trail
     }
   }
 
@@ -106,19 +106,19 @@ resource "aws_s3_bucket_policy" "artifacts" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid   = "DenyNonTLS"
-        Effect = "Deny"
+        Sid       = "DenyNonTLS"
+        Effect    = "Deny"
         Principal = "*"
         Action    = "s3:*"
-        Resource  = [
+        Resource = [
           aws_s3_bucket.artifacts.arn,
           "${aws_s3_bucket.artifacts.arn}/*"
         ]
         Condition = { Bool = { "aws:SecureTransport" = "false" } }
       },
       {
-        Sid   = "AllowCodePipeline"
-        Effect = "Allow"
+        Sid       = "AllowCodePipeline"
+        Effect    = "Allow"
         Principal = { AWS = [var.pipeline_role_arn, var.codebuild_role_arn] }
         Action = [
           "s3:GetObject", "s3:GetObjectVersion",
@@ -159,7 +159,7 @@ resource "aws_s3_bucket_replication_configuration" "access_logs" {
     id     = "replicate-access-logs"
     status = "Enabled"
 
-    filter {}   # replicate all objects
+    filter {} # replicate all objects
 
     destination {
       bucket        = var.replication_destination_logs_bucket_arn

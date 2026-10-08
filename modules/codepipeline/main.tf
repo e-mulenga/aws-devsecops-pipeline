@@ -38,7 +38,7 @@ resource "aws_codepipeline" "main" {
         RepositoryName       = var.repository_name
         BranchName           = var.branch_name
         PollForSourceChanges = "false"
-      } : {
+        } : {
         ConnectionArn        = var.github_connection_arn
         FullRepositoryId     = var.repository_name
         BranchName           = var.branch_name
@@ -275,8 +275,8 @@ resource "aws_codepipeline" "main" {
         run_order = 1
 
         configuration = {
-          NotificationArn = var.approval_sns_topic_arn
-          CustomData      = "CAB APPROVAL REQUIRED: Test environment validated. This will deploy to PRODUCTION. Ensure change ticket is approved."
+          NotificationArn    = var.approval_sns_topic_arn
+          CustomData         = "CAB APPROVAL REQUIRED: Test environment validated. This will deploy to PRODUCTION. Ensure change ticket is approved."
           ExternalEntityLink = "https://console.aws.amazon.com/codesuite/codepipeline/pipelines/${var.organization_name}-${var.environment}-devsecops-pipeline/view"
         }
       }
@@ -306,27 +306,27 @@ resource "aws_codepipeline" "main" {
 }
 
 # ---- CodePipeline Notification Rule -------------------------
- resource "aws_codestarnotifications_notification_rule" "pipeline" {
-   name        = "${var.organization_name}-${var.environment}-pipeline-notifications"
-   resource    = aws_codepipeline.main.arn
-   detail_type = "FULL"
+resource "aws_codestarnotifications_notification_rule" "pipeline" {
+  name        = "${var.organization_name}-${var.environment}-pipeline-notifications"
+  resource    = aws_codepipeline.main.arn
+  detail_type = "FULL"
 
-   event_type_ids = [
-     "codepipeline-pipeline-pipeline-execution-succeeded",
-     "codepipeline-pipeline-pipeline-execution-failed",
-     "codepipeline-pipeline-pipeline-execution-canceled",
-     "codepipeline-pipeline-manual-approval-needed",
-     "codepipeline-pipeline-manual-approval-succeeded",
-     "codepipeline-pipeline-manual-approval-failed"
-   ]
+  event_type_ids = [
+    "codepipeline-pipeline-pipeline-execution-succeeded",
+    "codepipeline-pipeline-pipeline-execution-failed",
+    "codepipeline-pipeline-pipeline-execution-canceled",
+    "codepipeline-pipeline-manual-approval-needed",
+    "codepipeline-pipeline-manual-approval-succeeded",
+    "codepipeline-pipeline-manual-approval-failed"
+  ]
 
-   target {
-     type    = "SNS"
-     address = var.approval_sns_topic_arn
-   }
+  target {
+    type    = "SNS"
+    address = var.approval_sns_topic_arn
+  }
 
-   tags = { Name = "${var.organization_name}-${var.environment}-pipeline-notifications" }
- }
+  tags = { Name = "${var.organization_name}-${var.environment}-pipeline-notifications" }
+}
 
 terraform {
   required_providers {

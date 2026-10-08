@@ -1,29 +1,29 @@
-variable "organization_name" { 
-  type = string 
+variable "organization_name" {
+  type = string
 }
 
-variable "environment" { 
-  type = string 
+variable "environment" {
+  type = string
 }
 
-variable "region" { 
-  type = string 
+variable "region" {
+  type = string
 }
 
-variable "account_id" { 
-  type = string 
+variable "account_id" {
+  type = string
 }
 
-variable "pipeline_role_arn" { 
-  type = string 
+variable "pipeline_role_arn" {
+  type = string
 }
 
-variable "artifact_bucket_name" { 
-  type = string 
+variable "artifact_bucket_name" {
+  type = string
 }
 
-variable "kms_key_arn" { 
-  type = string 
+variable "kms_key_arn" {
+  type = string
 }
 
 variable "source_provider" {
@@ -36,8 +36,8 @@ variable "github_connection_arn" {
   default = ""
 }
 
-variable "repository_name" { 
-  type = string 
+variable "repository_name" {
+  type = string
 }
 
 variable "branch_name" {
@@ -45,52 +45,52 @@ variable "branch_name" {
   default = "main"
 }
 
-variable "secret_scan_project_name" { 
-  type = string 
+variable "secret_scan_project_name" {
+  type = string
 }
 
-variable "sast_project_name" { 
-  type = string 
+variable "sast_project_name" {
+  type = string
 }
 
-variable "build_project_name" { 
-  type = string 
+variable "build_project_name" {
+  type = string
 }
 
-variable "container_scan_project_name" { 
-  type = string 
+variable "container_scan_project_name" {
+  type = string
 }
 
-variable "iac_scan_project_name" { 
-  type = string 
+variable "iac_scan_project_name" {
+  type = string
 }
 
-variable "sbom_project_name" { 
-  type = string 
+variable "sbom_project_name" {
+  type = string
 }
 
-variable "integration_test_project_name" { 
-  type = string 
+variable "integration_test_project_name" {
+  type = string
 }
 
-variable "dast_project_name" { 
-  type = string 
+variable "dast_project_name" {
+  type = string
 }
 
-variable "deploy_dev_project_name" { 
-  type = string 
+variable "deploy_dev_project_name" {
+  type = string
 }
 
-variable "deploy_test_project_name" { 
-  type = string 
+variable "deploy_test_project_name" {
+  type = string
 }
 
-variable "deploy_prod_project_name" { 
-  type = string 
+variable "deploy_prod_project_name" {
+  type = string
 }
 
-variable "approval_sns_topic_arn" { 
-  type = string 
+variable "approval_sns_topic_arn" {
+  type = string
 }
 
 variable "require_test_approval" {

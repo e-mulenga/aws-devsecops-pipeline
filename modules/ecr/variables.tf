@@ -1,17 +1,17 @@
-variable "organization_name" { 
-  type = string 
+variable "organization_name" {
+  type = string
 }
 
-variable "environment" { 
-  type = string 
+variable "environment" {
+  type = string
 }
 
-variable "repository_names" { 
-  type = list(string) 
+variable "repository_names" {
+  type = list(string)
 }
 
-variable "kms_key_arn" { 
-  type = string 
+variable "kms_key_arn" {
+  type = string
 }
 
 variable "scan_on_push" {

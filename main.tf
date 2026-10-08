@@ -22,57 +22,57 @@ variable "enable_pull_through_cache" {
 }
 
 locals {
-  name_prefix    = "${var.organization_name}-${var.environment}"
-  account_id     = data.aws_caller_identity.current.account_id
-  partition      = data.aws_partition.current.partition
-  region         = data.aws_region.current.name
+  name_prefix = "${var.organization_name}-${var.environment}"
+  account_id  = data.aws_caller_identity.current.account_id
+  partition   = data.aws_partition.current.partition
+  region      = data.aws_region.current.name
 }
 
 # ---- 1. Pipeline IAM Roles ----------------------------------
 module "pipeline_iam" {
   source = "./modules/pipeline-iam"
 
-  organization_name          = var.organization_name
-  environment                = var.environment
-  account_id                 = local.account_id
-  partition                  = local.partition
-  region                     = local.region
-  artifact_bucket_name       = var.artifact_bucket_name
-  kms_key_arn                = var.kms_key_arn
-  dev_account_id             = var.dev_account_id
-  test_account_id            = var.test_account_id # Used for cross-account access to the test account for integration testing
-  prod_account_id            = var.prod_account_id
-  codeartifact_domain_name   = var.codeartifact_domain_name
-  codeartifact_enabled       = var.codeartifact_enabled
+  organization_name        = var.organization_name
+  environment              = var.environment
+  account_id               = local.account_id
+  partition                = local.partition
+  region                   = local.region
+  artifact_bucket_name     = var.artifact_bucket_name
+  kms_key_arn              = var.kms_key_arn
+  dev_account_id           = var.dev_account_id
+  test_account_id          = var.test_account_id # Used for cross-account access to the test account for integration testing
+  prod_account_id          = var.prod_account_id
+  codeartifact_domain_name = var.codeartifact_domain_name
+  codeartifact_enabled     = var.codeartifact_enabled
 }
 
 # ---- 2. Artifact Store (S3) ---------------------------------
 module "artifact_store" {
   source = "./modules/artifact-store"
 
-  organization_name    = var.organization_name
-  environment          = var.environment
-  bucket_name          = var.artifact_bucket_name
-  kms_key_arn          = var.kms_key_arn
-  retention_days       = var.artifact_retention_days
-  pipeline_role_arn    = module.pipeline_iam.codepipeline_role_arn
-  codebuild_role_arn   = module.pipeline_iam.codebuild_role_arn
-  log_retention_days   = var.log_retention_days
+  organization_name  = var.organization_name
+  environment        = var.environment
+  bucket_name        = var.artifact_bucket_name
+  kms_key_arn        = var.kms_key_arn
+  retention_days     = var.artifact_retention_days
+  pipeline_role_arn  = module.pipeline_iam.codepipeline_role_arn
+  codebuild_role_arn = module.pipeline_iam.codebuild_role_arn
+  log_retention_days = var.log_retention_days
 }
 
 # ---- 3. ECR Repositories ------------------------------------
 module "ecr" {
   source = "./modules/ecr"
 
-  organization_name        = var.organization_name
-  environment              = var.environment
-  repository_names         = var.ecr_repository_names
-  image_retention_count    = var.ecr_image_retention_count
-  scan_on_push             = var.ecr_scan_on_push
+  organization_name         = var.organization_name
+  environment               = var.environment
+  repository_names          = var.ecr_repository_names
+  image_retention_count     = var.ecr_image_retention_count
+  scan_on_push              = var.ecr_scan_on_push
   enable_pull_through_cache = var.enable_pull_through_cache
-  kms_key_arn              = var.kms_key_arn
-  codebuild_role_arn       = module.pipeline_iam.codebuild_role_arn
-  cross_account_ids        = [var.dev_account_id, var.test_account_id, var.prod_account_id]
+  kms_key_arn               = var.kms_key_arn
+  codebuild_role_arn        = module.pipeline_iam.codebuild_role_arn
+  cross_account_ids         = [var.dev_account_id, var.test_account_id, var.prod_account_id]
 }
 
 # ---- 4. CodeArtifact (Package Registry) ---------------------
@@ -96,34 +96,34 @@ module "codeartifact" {
 module "codebuild" {
   source = "./modules/codebuild"
 
-  organization_name             = var.organization_name
-  environment                   = var.environment
-  region                        = local.region
-  account_id                    = local.account_id
-  codebuild_role_arn            = module.pipeline_iam.codebuild_role_arn
-  artifact_bucket_name          = var.artifact_bucket_name
-  kms_key_arn                   = var.kms_key_arn
-  build_image                   = var.build_image
-  build_compute_type            = var.build_compute_type
-  build_timeout_minutes         = var.build_timeout_minutes
-  vpc_id                        = var.vpc_id
-  private_subnet_ids            = var.private_subnet_ids
-  security_group_ids            = var.codebuild_security_group_ids
-  log_retention_days            = var.log_retention_days
-  ecr_repository_urls           = module.ecr.repository_urls
-  sast_enabled                  = var.sast_enabled
-  dast_enabled                  = var.dast_enabled
-  sbom_enabled                  = var.sbom_enabled
-  iac_scan_enabled              = var.iac_scan_enabled
-  dependency_scan_enabled       = var.dependency_scan_enabled
-  secret_scan_enabled           = var.secret_scan_enabled
-  sast_failure_action           = var.sast_failure_action
-  container_scan_severity       = var.container_scan_severity_threshold
-  codeartifact_domain           = var.codeartifact_enabled ? module.codeartifact[0].domain_name : ""
-  codeartifact_repository       = var.codeartifact_enabled ? module.codeartifact[0].repository_name : ""
-  dev_account_id                = var.dev_account_id
-  test_account_id               = var.test_account_id
-  prod_account_id               = var.prod_account_id
+  organization_name       = var.organization_name
+  environment             = var.environment
+  region                  = local.region
+  account_id              = local.account_id
+  codebuild_role_arn      = module.pipeline_iam.codebuild_role_arn
+  artifact_bucket_name    = var.artifact_bucket_name
+  kms_key_arn             = var.kms_key_arn
+  build_image             = var.build_image
+  build_compute_type      = var.build_compute_type
+  build_timeout_minutes   = var.build_timeout_minutes
+  vpc_id                  = var.vpc_id
+  private_subnet_ids      = var.private_subnet_ids
+  security_group_ids      = var.codebuild_security_group_ids
+  log_retention_days      = var.log_retention_days
+  ecr_repository_urls     = module.ecr.repository_urls
+  sast_enabled            = var.sast_enabled
+  dast_enabled            = var.dast_enabled
+  sbom_enabled            = var.sbom_enabled
+  iac_scan_enabled        = var.iac_scan_enabled
+  dependency_scan_enabled = var.dependency_scan_enabled
+  secret_scan_enabled     = var.secret_scan_enabled
+  sast_failure_action     = var.sast_failure_action
+  container_scan_severity = var.container_scan_severity_threshold
+  codeartifact_domain     = var.codeartifact_enabled ? module.codeartifact[0].domain_name : ""
+  codeartifact_repository = var.codeartifact_enabled ? module.codeartifact[0].repository_name : ""
+  dev_account_id          = var.dev_account_id
+  test_account_id         = var.test_account_id
+  prod_account_id         = var.prod_account_id
 
   depends_on = [module.artifact_store, module.pipeline_iam]
 }
@@ -132,15 +132,15 @@ module "codebuild" {
 module "notifications" {
   source = "./modules/notifications"
 
-  organization_name            = var.organization_name
-  environment                  = var.environment
-  kms_key_arn                  = var.kms_key_arn
-  pipeline_notification_email  = var.pipeline_notification_email
-  approval_notification_email  = var.approval_notification_email
-  slack_webhook_secret_arn     = var.slack_webhook_secret_arn
-  log_retention_days           = var.log_retention_days
-  account_id                   = local.account_id
-  region                       = local.region
+  organization_name           = var.organization_name
+  environment                 = var.environment
+  kms_key_arn                 = var.kms_key_arn
+  pipeline_notification_email = var.pipeline_notification_email
+  approval_notification_email = var.approval_notification_email
+  slack_webhook_secret_arn    = var.slack_webhook_secret_arn
+  log_retention_days          = var.log_retention_days
+  account_id                  = local.account_id
+  region                      = local.region
 }
 
 # ---- 7. CodePipeline ----------------------------------------
@@ -207,20 +207,20 @@ resource "aws_cloudwatch_dashboard" "pipeline" {
   dashboard_body = jsonencode({
     widgets = [
       {
-        type = "text"
-        x    = 0
-        y    = 0
-        width = 24
+        type   = "text"
+        x      = 0
+        y      = 0
+        width  = 24
         height = 2
         properties = {
           markdown = "# DevSecOps Pipeline Dashboard — ${upper(var.environment)}\n**Organisation:** ${var.organization_name} | **Pipeline:** ${module.codepipeline.pipeline_name}"
         }
       },
       {
-        type = "metric"
-        x    = 0
-        y    = 2
-        width = 8
+        type   = "metric"
+        x      = 0
+        y      = 2
+        width  = 8
         height = 6
         properties = {
           title  = "Pipeline Executions"
@@ -234,10 +234,10 @@ resource "aws_cloudwatch_dashboard" "pipeline" {
         }
       },
       {
-        type = "metric"
-        x    = 8
-        y    = 2
-        width = 8
+        type   = "metric"
+        x      = 8
+        y      = 2
+        width  = 8
         height = 6
         properties = {
           title  = "Build Duration (avg)"
@@ -250,10 +250,10 @@ resource "aws_cloudwatch_dashboard" "pipeline" {
         }
       },
       {
-        type = "metric"
-        x    = 16
-        y    = 2
-        width = 8
+        type   = "metric"
+        x      = 16
+        y      = 2
+        width  = 8
         height = 6
         properties = {
           title  = "Security Gate Failures"

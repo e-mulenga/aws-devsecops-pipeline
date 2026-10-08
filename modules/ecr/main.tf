@@ -53,10 +53,10 @@ resource "aws_ecr_lifecycle_policy" "main" {
         rulePriority = 1
         description  = "Retain last ${var.image_retention_count} tagged images"
         selection = {
-          tagStatus   = "tagged"
+          tagStatus     = "tagged"
           tagPrefixList = ["v", "release", "stable"]
-          countType   = "imageCountMoreThan"
-          countNumber = var.image_retention_count
+          countType     = "imageCountMoreThan"
+          countNumber   = var.image_retention_count
         }
         action = { type = "expire" }
       },
@@ -90,7 +90,7 @@ resource "aws_ecr_repository_policy" "main" {
           AWS = concat(
             [var.codebuild_role_arn],
             [for id in var.cross_account_ids :
-              "arn:aws:iam::${id}:root"]
+            "arn:aws:iam::${id}:root"]
           )
         }
         Action = [
@@ -102,8 +102,8 @@ resource "aws_ecr_repository_policy" "main" {
         ]
       },
       {
-        Sid    = "DenyUnencryptedPush"
-        Effect = "Deny"
+        Sid       = "DenyUnencryptedPush"
+        Effect    = "Deny"
         Principal = "*"
         Action    = ["ecr:PutImage"]
         Condition = {
@@ -131,7 +131,7 @@ resource "aws_ecr_pull_through_cache_rule" "public_ecr" {
 
 # ---- Registry Scanning Configuration ------------------------
 resource "aws_ecr_registry_scanning_configuration" "main" {
-  scan_type = "ENHANCED"   # Uses Amazon Inspector v2
+  scan_type = "ENHANCED" # Uses Amazon Inspector v2
 
   rule {
     scan_frequency = "CONTINUOUS_SCAN"

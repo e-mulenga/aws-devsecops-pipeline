@@ -62,7 +62,7 @@ resource "aws_iam_role_policy" "codepipeline" {
         Sid    = "S3ArtifactStore"
         Effect = "Allow"
         Action = ["s3:GetObject", "s3:GetObjectVersion", "s3:GetBucketVersioning",
-          "s3:PutObject", "s3:ListBucket"]
+        "s3:PutObject", "s3:ListBucket"]
         Resource = [
           "arn:${var.partition}:s3:::${var.artifact_bucket_name}",
           "arn:${var.partition}:s3:::${var.artifact_bucket_name}/*"
@@ -75,21 +75,21 @@ resource "aws_iam_role_policy" "codepipeline" {
         Resource = [var.kms_key_arn]
       },
       {
-        Sid    = "CodeBuildIntegration"
-        Effect = "Allow"
-        Action = ["codebuild:BatchGetBuilds", "codebuild:StartBuild", "codebuild:StopBuild"]
+        Sid      = "CodeBuildIntegration"
+        Effect   = "Allow"
+        Action   = ["codebuild:BatchGetBuilds", "codebuild:StartBuild", "codebuild:StopBuild"]
         Resource = ["arn:${var.partition}:codebuild:${var.region}:${var.account_id}:project/*"]
       },
       {
-        Sid    = "CodeStarConnections"
-        Effect = "Allow"
-        Action = ["codestar-connections:UseConnection"]
+        Sid      = "CodeStarConnections"
+        Effect   = "Allow"
+        Action   = ["codestar-connections:UseConnection"]
         Resource = ["arn:${var.partition}:codestar-connections:${var.region}:${var.account_id}:connection/*"]
       },
       {
-        Sid    = "SNSApproval"
-        Effect = "Allow"
-        Action = ["sns:Publish"]
+        Sid      = "SNSApproval"
+        Effect   = "Allow"
+        Action   = ["sns:Publish"]
         Resource = ["arn:${var.partition}:sns:${var.region}:${var.account_id}:${var.organization_name}-${var.environment}-*"]
       },
       {
@@ -138,9 +138,9 @@ resource "aws_iam_role_policy" "codebuild" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "CloudWatchLogs"
-        Effect = "Allow"
-        Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Sid      = "CloudWatchLogs"
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = ["arn:${var.partition}:logs:${var.region}:${var.account_id}:log-group:/aws/codebuild/*"]
       },
       {
@@ -173,15 +173,15 @@ resource "aws_iam_role_policy" "codebuild" {
         Resource = ["arn:${var.partition}:ecr:${var.region}:${var.account_id}:repository/${var.organization_name}/*"]
       },
       {
-        Sid    = "SecretsManagerAccess"
-        Effect = "Allow"
-        Action = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+        Sid      = "SecretsManagerAccess"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
         Resource = ["arn:${var.partition}:secretsmanager:${var.region}:${var.account_id}:secret:${var.organization_name}/*"]
       },
       {
-        Sid    = "SSMParameterAccess"
-        Effect = "Allow"
-        Action = ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"]
+        Sid      = "SSMParameterAccess"
+        Effect   = "Allow"
+        Action   = ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"]
         Resource = ["arn:${var.partition}:ssm:${var.region}:${var.account_id}:parameter/${var.organization_name}/*"]
       },
       {
@@ -197,28 +197,28 @@ resource "aws_iam_role_policy" "codebuild" {
         ] : ["arn:${var.partition}:codeartifact:${var.region}:${var.account_id}:*"]
       },
       {
-        Sid    = "STSGetToken"
-        Effect = "Allow"
-        Action = ["sts:GetServiceBearerToken"]
-        Resource = ["*"]
+        Sid       = "STSGetToken"
+        Effect    = "Allow"
+        Action    = ["sts:GetServiceBearerToken"]
+        Resource  = ["*"]
         Condition = { StringEquals = { "sts:AWSServiceName" = "codeartifact.amazonaws.com" } }
       },
       {
-        Sid    = "CrossAccountDeployDev"
-        Effect = "Allow"
-        Action = ["sts:AssumeRole"]
+        Sid      = "CrossAccountDeployDev"
+        Effect   = "Allow"
+        Action   = ["sts:AssumeRole"]
         Resource = ["arn:${var.partition}:iam::${var.dev_account_id}:role/${var.organization_name}-pipeline-deploy-role"]
       },
       {
-        Sid    = "CrossAccountDeployTest"
-        Effect = "Allow"
-        Action = ["sts:AssumeRole"]
+        Sid      = "CrossAccountDeployTest"
+        Effect   = "Allow"
+        Action   = ["sts:AssumeRole"]
         Resource = ["arn:${var.partition}:iam::${var.test_account_id}:role/${var.organization_name}-pipeline-deploy-role"]
       },
       {
-        Sid    = "CrossAccountDeployProd"
-        Effect = "Allow"
-        Action = ["sts:AssumeRole"]
+        Sid      = "CrossAccountDeployProd"
+        Effect   = "Allow"
+        Action   = ["sts:AssumeRole"]
         Resource = ["arn:${var.partition}:iam::${var.prod_account_id}:role/${var.organization_name}-pipeline-deploy-role"]
       },
       {
@@ -233,15 +233,15 @@ resource "aws_iam_role_policy" "codebuild" {
         Resource = ["arn:${var.partition}:ec2:${var.region}:${var.account_id}:network-interface/*"]
       },
       {
-        Sid    = "SecurityHubFindings"
-        Effect = "Allow"
-        Action = ["securityhub:BatchImportFindings"]
+        Sid      = "SecurityHubFindings"
+        Effect   = "Allow"
+        Action   = ["securityhub:BatchImportFindings"]
         Resource = ["arn:${var.partition}:securityhub:${var.region}:${var.account_id}:hub/default"]
       },
       {
-        Sid    = "InspectorScanResults"
-        Effect = "Allow"
-        Action = ["inspector2:ListFindings", "inspector2:GetFindingsReport"]
+        Sid      = "InspectorScanResults"
+        Effect   = "Allow"
+        Action   = ["inspector2:ListFindings", "inspector2:GetFindingsReport"]
         Resource = ["arn:${var.partition}:inspector2:${var.region}:${var.account_id}:resource/*"]
       }
     ]
