@@ -10,6 +10,11 @@
 #  [CAB Approval] → DeployProd
 # ============================================================
 
+locals {
+  # Null lets CodePipeline use its default artifact encryption unless a key is configured.
+  kms_key_arn = null
+}
+
 resource "aws_codepipeline" "main" {
   name     = "${var.organization_name}-${var.environment}-devsecops-pipeline"
   role_arn = var.pipeline_role_arn
