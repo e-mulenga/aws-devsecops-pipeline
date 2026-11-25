@@ -15,12 +15,7 @@
 data "aws_caller_identity" "current" {}
 
 resource "aws_codeartifact_domain" "main" {
-  domain         = var.domain_name
-  encryption_key = var.kms_key_arn
-
-  lifecycle {
-    ignore_changes = [encryption_key]
-  }
+  domain = var.domain_name
 
   tags = { Name = var.domain_name }
 }
@@ -31,9 +26,11 @@ resource "aws_codeartifact_domain_permissions_policy" "main" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "AllowCodeBuildAccess"
-        Effect    = "Allow"
-        Principal = { AWS = [var.codebuild_role_arn] }
+        Sid    = "AllowCodeBuildAccess"
+        Effect = "Allow"
+        Principal = {
+          AWS = var.codebuild_role_arn
+        }
         Action = [
           "codeartifact:DescribeDomain",
           "codeartifact:GetAuthorizationToken",
@@ -41,16 +38,6 @@ resource "aws_codeartifact_domain_permissions_policy" "main" {
           "codeartifact:ListRepositoriesInDomain"
         ]
         Resource = "*"
-      },
-      {
-        Sid       = "DenyNonOrganisationAccess"
-        Effect    = "Deny"
-        Principal = "*"
-        Action    = "codeartifact:*"
-        Resource  = "*"
-        Condition = {
-          StringNotEquals = { "aws:PrincipalAccount" = var.account_id }
-        }
       }
     ]
   })
@@ -111,14 +98,4 @@ resource "aws_codeartifact_repository_permissions_policy" "internal" {
       Resource = "*"
     }]
   })
-}
-
-terraform {
-  required_version = ">= 1.5.0"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
 }

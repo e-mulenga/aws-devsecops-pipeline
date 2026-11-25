@@ -2,7 +2,7 @@
 
 [![Security Scan](https://github.com/e-mulenga/aws-devsecops-pipeline/actions/workflows/security-scan.yml/badge.svg)](https://github.com/e-mulenga/aws-devsecops-pipeline/actions)
 [![Terraform Plan](https://github.com/e-mulenga/aws-devsecops-pipeline/actions/workflows/terraform-plan.yml/badge.svg)](https://github.com/e-mulenga/aws-devsecops-pipeline/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/e-mulenga/aws-devsecops-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/e-mulenga/aws-devsecops-pipeline/actions)
 [![Terraform](https://img.shields.io/badge/Terraform-%3E%3D1.6.0-623CE4.svg)](https://www.terraform.io)
 [![AWS Provider](https://img.shields.io/badge/AWS_Provider-~%3E5.40-FF9900.svg)](https://registry.terraform.io/providers/hashicorp/aws)
 
@@ -112,9 +112,27 @@ Source → [SecretScan + SAST] → Build → [ContainerScan + IaCScan + SBOM]
 - **EventBridge rules** — pipeline state and security gate events → SNS
 - **CloudWatch dashboard** — pipeline executions, build duration, gate failures
 
+Consumed from the Landing Zone, never created here: the ECR repository (`ecr_repository_urls`), key strategy, `eu_west_1` settings. See [docs/landing-zone-integration.md](docs/landing-zone-integration.md).
+
+**FinOps and encryption:** Dev/Test use AWS-managed keys. Prod uses a CMK where governance requires it, following the Landing Zone `key_strategy`. Landing Zone keys exist only in af-south-1, so the Ireland resources here use AWS-managed encryption. Details: [docs/finops-and-kms.md](docs/finops-and-kms.md).
+
 ---
 
 ## 4. Architecture Overview
+
+![Executive view](architecture/diagrams/executive-architecture.png)
+
+![Landing Zone integration](architecture/diagrams/landing-zone-integration.png)
+
+### Regional placement
+
+![Regional placement](architecture/diagrams/regional-placement.png)
+
+CodeConnections and CodeArtifact are not offered in af-south-1, so the pipeline runs in eu-west-1 and pushes images to the Landing Zone ECR repository in af-south-1. Sources and check date: [docs/regional-availability.md](docs/regional-availability.md).
+
+![Pipeline stages and gates](architecture/diagrams/pipeline-stages.png)
+
+Four more diagrams are in `architecture/diagrams/`: multi-account deployment, IAM trust, monitoring and alerting, and the threat model.
 
 ### Pipeline Stage Flow
 
@@ -284,7 +302,7 @@ flowchart TD
 
 ## 7. Service Selection Rationale
 
-Full rationale for every service is in [`architecture/service-selection-rationale.md`](architecture/service-selection-rationale.md).
+Decisions are recorded in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 ### Summary Table
 
@@ -306,73 +324,41 @@ Full rationale for every service is in [`architecture/service-selection-rational
 
 ```
 aws-devsecops-pipeline/
-├── provider.tf                        # terraform{} block + all providers (NO versions.tf)
-├── variables.tf                       # 35+ validated variables — nothing hardcoded
-├── main.tf                            # Root: composes all 7 modules + CloudWatch resources
-├── outputs.tf                         # Pipeline ARN, ECR URLs, SNS ARNs → downstream repos
-├── terraform.tfvars.example           # Template — NEVER commit terraform.tfvars
-│
+├── provider.tf                        # terraform{} block + providers (default af-south-1, alias ireland)
+├── landing_zone.tf                    # Landing Zone remote state, contract precondition, ECR lookup
+├── variables.tf                       # Validated variables, nothing hardcoded
+├── main.tf                            # Composes the 6 modules + CloudWatch alarm and dashboard
+├── outputs.tf
 ├── modules/
 │   ├── pipeline-iam/                  # CodePipeline + CodeBuild roles, cross-account trust
-│   ├── artifact-store/                # Encrypted S3 artifact bucket + CloudWatch log group
-│   ├── ecr/                           # ECR repositories, lifecycle policies, cross-account pull
-│   ├── codeartifact/                  # Domain, npm/pip/maven upstreams, internal repo
-│   ├── codebuild/                     # 11 projects via for_each — secret-scan through deploy-prod
-│   ├── notifications/                 # SNS topics, EventBridge rules, Lambda Slack notifier
-│   └── codepipeline/                  # 10-stage pipeline with conditional security gates
-│
-├── buildspecs/
-│   ├── buildspec-secret-scan.yml      # gitleaks — blocks on secrets
-│   ├── buildspec-sast.yml             # Semgrep OWASP + CWE-25 + Bandit
-│   ├── buildspec-build.yml            # Docker build + unit tests + ECR push
-│   ├── buildspec-container-scan.yml   # Trivy image + filesystem scan
-│   ├── buildspec-iac-scan.yml         # tfsec + checkov
-│   ├── buildspec-sbom.yml             # Syft CycloneDX + SPDX generation
-│   ├── buildspec-integration-test.yml # pytest + Newman cross-account
-│   └── buildspec-dast.yml             # OWASP ZAP active scan
-│   └── buildspec-deploy.yml           # Cross-account kubectl/ECS deploy (shared)
-│
+│   ├── artifact-store/                # S3 artifact bucket, access-log bucket, log group
+│   ├── codeartifact/                  # Domain, upstreams, internal repository
+│   ├── codebuild/                     # 11 projects via for_each
+│   ├── notifications/                 # SNS topics, EventBridge rules, optional Slack notifier
+│   └── codepipeline/                  # Pipeline with conditional security gates
+├── buildspecs/                        # One buildspec per stage
 ├── environments/
-│   ├── dev/   { backend.tf, terraform.tfvars.example }
-│   ├── test/  { backend.tf, terraform.tfvars.example }
-│   └── prod/  { backend.tf, terraform.tfvars.example }
-│
-├── .github/workflows/
-│   ├── terraform-plan.yml             # PR gate: OIDC, tfsec, checkov, plan per env
-│   ├── terraform-apply.yml            # Apply: dev auto, test/prod gated + drift detection
-│   └── security-scan.yml             # Daily: tfsec + checkov + trivy + gitleaks + tflint
-│
-├── policies/iam/
-│   └── pipeline-deployment-role.json  # Cross-account deploy role (apply in each target account)
-│
-├── architecture/
-│   └── service-selection-rationale.md # Full service justification for every tool
-│
-├── runbooks/
-│   ├── pipeline-failure-runbook.md    # 6 failure scenarios with CLI remediation steps
-│   └── operational-runbook.md         # Day-2 ops, gate management, maintenance schedule
-│
-├── validation/
-│   └── validate-pipeline.sh           # Post-deploy: checks all 11 projects + ECR + SNS
-│
+│   ├── common.tfvars                  # Shared posture for dev, test, prod
+│   └── {dev,test,prod}/               # backend.hcl.example, terraform.tfvars.example
 ├── scripts/
-│   ├── bootstrap-state.sh             # S3 + DynamoDB + KMS remote state bootstrap
-│   └── setup-github-connection.sh     # CodeStar connection creation helper
-│
-├── .gitignore
-├── CONTRIBUTING.md
-├── SECURITY.md
-└── README.md
+│   ├── tf.sh                          # terraform wrapper: backend + var files per environment
+│   ├── setup-github-connection.sh     # Creates the CodeConnections connection in eu-west-1
+│   └── generate-diagrams.py
+├── policies/iam/pipeline-deployment-role.json   # Deploy role for each target account
+├── validation/validate-pipeline.sh
+├── runbooks/                          # Failure and operational runbooks
+├── docs/                              # ADRs, threat model, RTO/RPO, FinOps, business case, migration
+├── architecture/diagrams/             # 8 diagrams
+├── tests/test_posture.py
+└── .github/workflows/                 # ci.yml, security.yml
 ```
 
 ### Module Design Decisions
 
-- **`codebuild` module uses `for_each` over `local.projects` map** — 11 projects defined declaratively; adding a new stage is one map entry.
-- **Buildspecs are external files** — committed to the repository and read at runtime. Changes take effect on the next pipeline run without Terraform apply.
-- **No `versions.tf`** — portfolio standard: `terraform {}` block lives in `provider.tf`.
-- **All values are variables** — no hardcoded account IDs, regions, emails, or secrets.
-- **Conditional stages** — `sast_enabled`, `dast_enabled`, `sbom_enabled`, `iac_scan_enabled` toggle stages without removing CodeBuild projects.
-
+- **`codebuild` uses `for_each` over `local.projects`**: adding a stage is one map entry.
+- **Buildspecs are external files**: changes take effect on the next pipeline run without a Terraform apply.
+- **Every pipeline module is bound to `aws.ireland`**: enforced by `tests/test_posture.py`.
+- **Conditional stages**: `sast_enabled`, `dast_enabled`, `sbom_enabled`, `iac_scan_enabled` toggle stages.
 ---
 
 ## 9. Deployment Guide
@@ -390,61 +376,35 @@ aws-devsecops-pipeline/
 ### Step 1 — Bootstrap Remote State
 
 ```bash
-ENV=prod ORG=acme-enterprise AWS_REGION=af-south-1 \
-  bash scripts/bootstrap-state.sh
-# Update environments/prod/backend.tf with output values
+cp environments/prod/backend.tf environments/prod/backend.tf          # Landing Zone state bucket
+cp environments/prod/terraform.tfvars.example environments/prod/terraform.tfvars  # identity and Landing Zone state location
 ```
 
-### Step 2 — Create GitHub CodeStar Connection
+Shared settings (Regions, gates, retention) live in `environments/common.tfvars`.
+
+### Step 2: Create the GitHub connection (eu-west-1)
 
 ```bash
-REGION=af-south-1 CONNECTION_NAME=github-prod \
-  bash scripts/setup-github-connection.sh
-# Complete OAuth in AWS Console, then add ARN to terraform.tfvars
+REGION=eu-west-1 CONNECTION_NAME=github-prod bash scripts/setup-github-connection.sh
+# Approve the connection in the console, then set github_connection_arn in terraform.tfvars
 ```
 
-### Step 3 — Configure Variables
+### Step 3: Deploy target roles
+
+Create `<org>-pipeline-deploy-role` in each target account from `policies/iam/pipeline-deployment-role.json`, trusting the pipeline account's CodeBuild role. When no separate account IDs are set, the pipeline deploys into its own account.
+
+### Step 4: Apply
 
 ```bash
-cp terraform.tfvars.example environments/prod/terraform.tfvars
-# Populate with:
-#   - Account IDs from landing zone: terraform output -json
-#   - KMS key ARN from landing zone: terraform output kms_cloudtrail_key_arn
-#   - GitHub connection ARN from step 2
+scripts/tf.sh prod init
+scripts/tf.sh prod plan
+scripts/tf.sh prod apply
 ```
 
-### Step 4 — Set Up OIDC for GitHub Actions
+### Step 5: Validate
 
 ```bash
-# From the landing zone scripts (already created)
-GITHUB_ORG=e-mulenga GITHUB_REPO=aws-devsecops-pipeline \
-ENV=prod AWS_ACCOUNT_ID=<pipeline_account_id> \
-  bash ../aws-enterprise-landing-zone-terraform/scripts/setup-oidc.sh
-```
-
-### Step 5 — Apply Cross-Account Deployment Roles
-
-Apply `policies/iam/pipeline-deployment-role.json` as an IAM policy in **each target account** (dev, test, prod), attached to a role named `<org>-pipeline-deploy-role` with a trust policy allowing the pipeline account's CodeBuild role to assume it.
-
-### Step 6 — Deploy Pipeline Infrastructure
-
-```bash
-# Phase 1 — IAM roles first (other modules depend on role ARNs)
-terraform init -backend-config="environments/prod/backend.tf" -reconfigure
-terraform apply \
-  -var-file="environments/prod/terraform.tfvars" \
-  -target=module.pipeline_iam \
-  -target=module.artifact_store
-
-# Phase 2 — Full apply
-terraform apply -var-file="environments/prod/terraform.tfvars"
-```
-
-### Step 7 — Validate
-
-```bash
-ENV=prod ORG=acme-enterprise AWS_REGION=af-south-1 \
-  bash validation/validate-pipeline.sh
+ENV=prod ORG=<organization_name> bash validation/validate-pipeline.sh
 ```
 
 ---
@@ -454,10 +414,9 @@ ENV=prod ORG=acme-enterprise AWS_REGION=af-south-1 \
 ### Automated Validation
 
 ```bash
-ENV=prod ORG=acme-enterprise AWS_REGION=af-south-1 \
-  bash validation/validate-pipeline.sh
-# Checks: pipeline exists, 11 CodeBuild projects, ECR repos,
-# SNS topics, S3 encryption, CloudWatch alarms
+ENV=prod ORG=<organization_name> bash validation/validate-pipeline.sh
+# Checks: pipeline and stages, 11 CodeBuild projects, Landing Zone ECR repository,
+# artifact bucket versioning and encryption, SNS topics, CloudWatch alarm
 ```
 
 ### Manual Spot Checks
@@ -465,28 +424,26 @@ ENV=prod ORG=acme-enterprise AWS_REGION=af-south-1 \
 **Trigger a test pipeline run:**
 ```bash
 aws codepipeline start-pipeline-execution \
-  --name "acme-enterprise-prod-devsecops-pipeline" --region af-south-1
+  --name "<organization_name>-prod-devsecops-pipeline" --region eu-west-1
 ```
 
-**Verify ECR tag immutability (prod):**
+**Check the Landing Zone repository:**
 ```bash
-aws ecr describe-repositories \
-  --repository-names "acme-enterprise-prod-app" \
+aws ecr describe-repositories --repository-names "<landing-zone-repository-name>" \
   --query 'repositories[0].imageTagMutability' --region af-south-1
-# Expected: IMMUTABLE
 ```
 
-**Verify CodeArtifact blocks direct internet (test pull):**
+**Check CodeArtifact access:**
 ```bash
 aws codeartifact get-authorization-token \
-  --domain "acme-enterprise-prod" \
-  --query authorizationToken --output text --region af-south-1
+  --domain "<organization_name>-prod" \
+  --query expiration --output text --region eu-west-1
 ```
 
-**Verify cross-account role assumption:**
+**Check cross-account role assumption:**
 ```bash
 aws sts assume-role \
-  --role-arn "arn:aws:iam::<DEV_ACCOUNT_ID>:role/acme-enterprise-pipeline-deploy-role" \
+  --role-arn "arn:aws:iam::<DEV_ACCOUNT_ID>:role/<organization_name>-pipeline-deploy-role" \
   --role-session-name "validation-test"
 ```
 
@@ -561,47 +518,34 @@ The `<org>-<env>-devsecops-pipeline` dashboard displays:
 | Approval needed | Manual approval stage reached | SNS → Approver email |
 | Deploy success | Pipeline succeeds | SNS → Dev team Slack |
 
-### Security Findings Integration
+### Security Findings
 
-All scanner outputs (Semgrep SARIF, Trivy SARIF, tfsec SARIF, checkov SARIF) are uploaded to the GitHub Security tab. Critical findings are also imported to AWS Security Hub via the CodeBuild role's `securityhub:BatchImportFindings` permission — surfacing pipeline security gate results alongside runtime findings in the Cloud Security Operations Centre.
+Every scanner writes its report (Semgrep SARIF, Trivy, tfsec, checkov, ZAP, SBOM) to the build artifacts in the artifact bucket. Findings are not imported into Security Hub (docs/DECISIONS.md ADR-8).
 
 ---
 
 ## 13. Disaster Recovery Strategy
 
+Full detail: [docs/dr-and-resilience.md](docs/dr-and-resilience.md).
+
 ### Pipeline Infrastructure Recovery
 
-The pipeline infrastructure is defined entirely in Terraform. Recovery from state loss:
-
-```bash
-# Restore state from S3 versioning
-aws s3api list-object-versions \
-  --bucket "${ORG}-devsecops-state-prod" \
-  --prefix "devsecops-pipeline/prod/terraform.tfstate"
-
-# Re-import critical resources if needed
-terraform import module.codepipeline.aws_codepipeline.main <pipeline_name>
-terraform import 'module.ecr.aws_ecr_repository.main["app"]' <repo_name>
-```
+The pipeline is defined entirely in Terraform. State lives in the Landing Zone state bucket (versioned): recover a previous state version from the bucket, or re-run `scripts/tf.sh <env> apply` against empty state and import the pipeline if needed.
 
 ### Artefact Recovery
 
-- S3 artifact bucket versioning retains all pipeline artefacts for `artifact_retention_days` days
-- ECR image tags are immutable in prod — previous images persist for rollback
-- SBOM archive in S3 provides historical supply chain evidence
+- The artifact bucket keeps versions for `artifact_retention_days`
+- Artifacts are reproducible by re-running the pipeline on the same commit
+- Images stay in the Landing Zone ECR repository under their commit SHA tag
 
 ### Rollback Procedure
 
 ```bash
-# Roll back to a previous image tag
-aws ecs update-service \
-  --cluster "${ORG}-prod-cluster" \
-  --service app \
-  --task-definition app:<PREVIOUS_REVISION>
+# ECS: roll back to a previous task definition revision
+aws ecs update-service --cluster "<org>-prod-cluster" --service app --task-definition app:<PREVIOUS_REVISION> --region af-south-1
 
-# Or for EKS
-kubectl set image deployment/app \
-  app=<ECR_REPO>:<PREVIOUS_TAG> -n prod
+# EKS: roll back to a previous image
+kubectl set image deployment/app app=<ECR_REPO>:<PREVIOUS_TAG> -n prod
 kubectl rollout status deployment/app -n prod
 ```
 
@@ -609,47 +553,30 @@ kubectl rollout status deployment/app -n prod
 
 | Component | RTO | RPO |
 |---|---|---|
-| Pipeline infrastructure (Terraform re-apply) | 15 min | 0 (code-defined) |
-| ECR images (previous tags retained) | 5 min | Last successful build |
-| SBOM archive | 0 (S3 versioned) | Last pipeline run |
+| Pipeline infrastructure | 2 hours | 0 (code-defined) |
+| Artifacts and SBOMs | 1 hour (re-run) | Last successful build |
+| CodeArtifact | 4 hours | Last internal publish |
+| GitHub connection | 30 minutes | 0 |
 
 ---
 
 ## 14. Cost Optimization Strategy
 
+Full detail: [docs/finops-and-kms.md](docs/finops-and-kms.md).
+
 ### Service Cost Profile
 
 | Service | Pricing Model | Optimisation |
 |---|---|---|
-| CodePipeline | $1/active pipeline/month | One pipeline per application |
-| CodeBuild | $0.005–$0.022/build-minute by tier | Use SMALL for non-Docker stages |
-| ECR | $0.10/GB storage + transfer | Lifecycle policy: expire untagged after 7 days |
-| CodeArtifact | $0.05/GB + $0.002/1K requests | Upstream caching reduces public registry egress |
-| S3 (artifacts) | Storage + requests | Lifecycle: expire artifacts after 30 days |
-| Inspector v2 | $0.09–$0.25 per image scan | Continuous scanning replaces repeated one-off scans |
-| SNS | $0.50/M notifications | Negligible at pipeline scale |
+| CodePipeline | Per active pipeline per month | One pipeline per environment |
+| CodeBuild | Per build minute by compute size | SMALL for light stages, 30-minute default timeout |
+| CodeArtifact | Per GB stored and per request | Upstream caching reduces public registry traffic |
+| S3 (artifacts) | Storage + requests | Expire artifacts after 30 days |
+| CloudWatch | Log ingestion, dashboard, alarm | One dashboard, one alarm, 365-day log retention |
+| SNS | Per request | Negligible |
+| Cross-Region transfer | Per GB | Eu-west-1 to af-south-1 image pushes: small images, layer caching |
 
-### Environment Cost Differences
-
-| Config | DEV | PROD |
-|---|---|---|
-| Build compute | `BUILD_GENERAL1_SMALL` | `BUILD_GENERAL1_MEDIUM` |
-| Approval gates | Disabled | Enabled |
-| DAST | Optional | Required |
-| Artifact retention | 7 days | 30 days |
-| ECR immutability | MUTABLE | IMMUTABLE |
-
-### Estimated Monthly Cost (single pipeline)
-
-| Component | Estimate (USD/month) |
-|---|---|
-| CodePipeline | $1 |
-| CodeBuild (50 builds × 8 min avg) | $8–$18 |
-| ECR (3 repos, 30 images each) | $3–$5 |
-| CodeArtifact | $5–$15 |
-| S3 artifacts + logs | $2–$5 |
-| Inspector v2 | $5–$15 |
-| **Total** | **~$24–59/month** |
+No NAT gateway or interface endpoint is created. Check current prices on the AWS pricing pages before budgeting.
 
 ---
 
@@ -832,6 +759,10 @@ flowchart TD
 | **[aws-cloud-security-operations-center](https://github.com/e-mulenga/aws-cloud-security-operations-center)** | Downstream — consumes Security Hub findings | `alerts_topic_arn` output consumed |
 | **[aws-secure-eks-platform](https://github.com/e-mulenga/aws-secure-eks-platform)** | Downstream — receives container images | `ecr_repository_urls` output consumed |
 | **[multi-cloud-governance](https://github.com/e-mulenga/multi-cloud-governance)** | Downstream — unified posture | Security Hub findings aggregated |
+
+## Documentation
+
+[Business case](docs/BUSINESS-CASE.md) · [Issues resolved](docs/ISSUES-RESOLVED.md) · [Migration](docs/MIGRATION.md) · [Decisions](docs/DECISIONS.md) · [Regional availability](docs/regional-availability.md) · [Landing Zone integration](docs/landing-zone-integration.md) · [FinOps and encryption](docs/finops-and-kms.md) · [Roles](docs/rbac.md) · [Threat model](docs/threat-model.md) · [DR and RTO/RPO](docs/dr-and-resilience.md) · [Testing](docs/testing-strategy.md) · [Roadmap](docs/roadmap.md)
 
 ---
 

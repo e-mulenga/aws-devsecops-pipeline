@@ -17,10 +17,6 @@ resource "aws_codepipeline" "main" {
   artifact_store {
     location = var.artifact_bucket_name
     type     = "S3"
-    encryption_key {
-      id   = var.kms_key_arn
-      type = "KMS"
-    }
   }
 
   # ---- Stage 1: Source ----------------------------------------
@@ -326,17 +322,4 @@ resource "aws_codestarnotifications_notification_rule" "pipeline" {
   }
 
   tags = { Name = "${var.organization_name}-${var.environment}-pipeline-notifications" }
-}
-
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
-
-terraform {
-  required_version = ">= 1.5.0"
 }

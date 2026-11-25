@@ -9,41 +9,6 @@
 #   - Cross-account deployment roles in dev/test/prod
 # ============================================================
 
-terraform {
-  required_version = ">= 1.0"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = ">= 4.0"
-    }
-  }
-}
-
-data "aws_caller_identity" "current" {}
-data "aws_region" "current" {}
-
-data "aws_iam_policy_document" "codepipeline_assume" {
-  statement {
-    effect  = "Allow"
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["codepipeline.amazonaws.com"]
-    }
-  }
-}
-
-data "aws_iam_policy_document" "codebuild_assume" {
-  statement {
-    effect  = "Allow"
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["codebuild.amazonaws.com"]
-    }
-  }
-}
-
 # ---- CodePipeline Role --------------------------------------
 resource "aws_iam_role" "codepipeline" {
   name               = "${var.organization_name}-${var.environment}-codepipeline-role"
@@ -69,22 +34,19 @@ resource "aws_iam_role_policy" "codepipeline" {
         ]
       },
       {
-        Sid      = "KMSArtifactEncryption"
-        Effect   = "Allow"
-        Action   = ["kms:Decrypt", "kms:DescribeKey", "kms:GenerateDataKey"]
-        Resource = [var.kms_key_arn]
-      },
-      {
         Sid      = "CodeBuildIntegration"
         Effect   = "Allow"
         Action   = ["codebuild:BatchGetBuilds", "codebuild:StartBuild", "codebuild:StopBuild"]
         Resource = ["arn:${var.partition}:codebuild:${var.region}:${var.account_id}:project/*"]
       },
       {
-        Sid      = "CodeStarConnections"
-        Effect   = "Allow"
-        Action   = ["codestar-connections:UseConnection"]
-        Resource = ["arn:${var.partition}:codestar-connections:${var.region}:${var.account_id}:connection/*"]
+        Sid    = "CodeStarConnections"
+        Effect = "Allow"
+        Action = ["codeconnections:UseConnection", "codestar-connections:UseConnection"]
+        Resource = [
+          "arn:${var.partition}:codeconnections:${var.region}:${var.account_id}:connection/*",
+          "arn:${var.partition}:codestar-connections:${var.region}:${var.account_id}:connection/*"
+        ]
       },
       {
         Sid      = "SNSApproval"
@@ -153,24 +115,23 @@ resource "aws_iam_role_policy" "codebuild" {
         ]
       },
       {
-        Sid      = "KMSAccess"
+        Sid      = "ECRAuthToken"
         Effect   = "Allow"
-        Action   = ["kms:Decrypt", "kms:DescribeKey", "kms:GenerateDataKey", "kms:Encrypt"]
-        Resource = [var.kms_key_arn]
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = ["*"]
       },
       {
-        Sid    = "ECRAccess"
+        # The repository belongs to the Landing Zone (af-south-1); this role only pushes and reads images.
+        Sid    = "ECRImageAccess"
         Effect = "Allow"
         Action = [
-          "ecr:GetAuthorizationToken",
           "ecr:BatchCheckLayerAvailability", "ecr:GetDownloadUrlForLayer",
           "ecr:BatchGetImage", "ecr:PutImage",
           "ecr:InitiateLayerUpload", "ecr:UploadLayerPart",
           "ecr:CompleteLayerUpload", "ecr:DescribeImages",
-          "ecr:DescribeRepositories", "ecr:ListImages",
-          "ecr:StartImageScan", "ecr:DescribeImageScanFindings"
+          "ecr:ListImages"
         ]
-        Resource = ["arn:${var.partition}:ecr:${var.region}:${var.account_id}:repository/${var.organization_name}/*"]
+        Resource = [var.ecr_repository_arn]
       },
       {
         Sid      = "SecretsManagerAccess"
@@ -222,34 +183,17 @@ resource "aws_iam_role_policy" "codebuild" {
         Resource = ["arn:${var.partition}:iam::${var.prod_account_id}:role/${var.organization_name}-pipeline-deploy-role"]
       },
       {
-        Sid    = "VPCAccess"
-        Effect = "Allow"
-        Action = [
-          "ec2:CreateNetworkInterface", "ec2:DescribeDhcpOptions",
-          "ec2:DescribeNetworkInterfaces", "ec2:DeleteNetworkInterface",
-          "ec2:DescribeSubnets", "ec2:DescribeSecurityGroups", "ec2:DescribeVpcs",
-          "ec2:CreateNetworkInterfacePermission"
-        ]
-        Resource = ["arn:${var.partition}:ec2:${var.region}:${var.account_id}:network-interface/*"]
+        Sid      = "VPCDescribe"
+        Effect   = "Allow"
+        Action   = ["ec2:DescribeDhcpOptions", "ec2:DescribeNetworkInterfaces", "ec2:DescribeSubnets", "ec2:DescribeSecurityGroups", "ec2:DescribeVpcs"]
+        Resource = ["*"]
       },
       {
-        Sid      = "SecurityHubFindings"
+        Sid      = "VPCNetworkInterfaces"
         Effect   = "Allow"
-        Action   = ["securityhub:BatchImportFindings"]
-        Resource = ["arn:${var.partition}:securityhub:${var.region}:${var.account_id}:hub/default"]
-      },
-      {
-        Sid      = "InspectorScanResults"
-        Effect   = "Allow"
-        Action   = ["inspector2:ListFindings", "inspector2:GetFindingsReport"]
-        Resource = ["arn:${var.partition}:inspector2:${var.region}:${var.account_id}:resource/*"]
+        Action   = ["ec2:CreateNetworkInterface", "ec2:DeleteNetworkInterface", "ec2:CreateNetworkInterfacePermission"]
+        Resource = ["arn:${var.partition}:ec2:${var.region}:${var.account_id}:*"]
       }
     ]
   })
-}
-
-# ---- Managed Policy Attachments -----------------------------
-resource "aws_iam_role_policy_attachment" "codebuild_cloudwatch" {
-  role       = aws_iam_role.codebuild.name
-  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
 }

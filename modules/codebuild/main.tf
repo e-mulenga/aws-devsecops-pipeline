@@ -26,6 +26,10 @@ locals {
     { name = "AWS_REGION", value = var.region, type = "PLAINTEXT" },
     { name = "AWS_ACCOUNT_ID", value = var.account_id, type = "PLAINTEXT" },
     { name = "ENVIRONMENT", value = var.environment, type = "PLAINTEXT" },
+    # The pipeline runs in eu-west-1 (CodeConnections is not available in af-south-1). Images live in the Landing Zone
+    # ECR repositories and workloads are deployed in af-south-1, so both Regions are passed explicitly.
+    { name = "ECR_REGION", value = var.ecr_region, type = "PLAINTEXT" },
+    { name = "WORKLOAD_REGION", value = var.workload_region, type = "PLAINTEXT" },
   ]
 
   # VPC config block — only when vpc_id is provided
@@ -62,8 +66,8 @@ locals {
       compute_type = var.build_compute_type
       privileged   = true # Required for Docker daemon
       extra_env = concat(
-        [for name, url in var.ecr_repository_urls :
-          { name = "ECR_REPO_${upper(replace(name, "-", "_"))}", value = url, type = "PLAINTEXT" }
+        [
+          { name = "ECR_REPO_APP", value = var.ecr_repository_url, type = "PLAINTEXT" }
         ],
         var.codeartifact_domain != "" ? [
           { name = "CODEARTIFACT_DOMAIN", value = var.codeartifact_domain, type = "PLAINTEXT" },
@@ -72,7 +76,7 @@ locals {
       )
     }
     "container-scan" = {
-      description  = "Container image vulnerability scan — Trivy + Inspector"
+      description  = "Container image vulnerability scan — Trivy"
       buildspec    = "buildspecs/buildspec-container-scan.yml"
       timeout      = 30
       compute_type = var.build_compute_type
@@ -153,15 +157,6 @@ locals {
 
 # ---- CodeBuild Projects (for_each over project map) ---------
 
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
-
 resource "aws_cloudwatch_log_group" "projects" {
   for_each = local.projects
 
@@ -236,11 +231,5 @@ resource "aws_codebuild_project" "main" {
     }
   }
 
-  encryption_key = var.kms_key_arn
-
   tags = { Stage = each.key, Purpose = "devsecops-pipeline" }
-}
-
-terraform {
-  required_version = ">= 1.5.0"
 }

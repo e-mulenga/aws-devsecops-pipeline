@@ -1,18 +1,29 @@
-organization_name   = "acme-enterprise"
-environment         = "dev"
-aws_region          = "af-south-1"
-owner               = "Platform Engineering"
-cost_center         = "DEVOPS001"
-repository_name     = "your-org/your-app"
-branch_name         = "develop"
-artifact_bucket_name = "acme-enterprise-pipeline-artifacts-dev"
-build_compute_type  = "BUILD_GENERAL1_SMALL"
-require_test_approval = false
-require_prod_approval = false
-dev_account_id      = ""
-test_account_id     = ""
-prod_account_id     = ""
-shared_services_account_id = ""
-kms_key_arn         = ""
-cloudtrail_bucket_name = ""
-github_connection_arn = ""
+# Copy to terraform.tfvars (git-ignored). IDENTITY ONLY: shared settings live in environments/common.tfvars.
+
+organization_name = "<short-org-name>"
+environment       = "dev"
+owner             = "Platform Engineering"
+cost_center       = "LAB001"
+
+# Landing Zone state location: the Landing Zone output "terraform_state" prints these three values.
+landing_zone_state_bucket = "<landing-zone-state-bucket>"
+landing_zone_state_key    = "landing-zone/dev/terraform.tfstate"
+landing_zone_state_region = "<landing-zone-state-bucket-region>"
+
+# Source: a CodeConnections connection created in eu-west-1 (scripts/setup-github-connection.sh) and approved in the console
+repository_name       = "<github-user>/<application-repository>"
+branch_name           = "main"
+github_connection_arn = "<connection-arn-in-eu-west-1>"
+
+# Pipeline artifact bucket (globally unique name, created in eu-west-1)
+artifact_bucket_name = "<org>-dev-pipeline-artifacts"
+
+# Deployment targets. Leave empty to deploy into the Landing Zone account itself.
+# dev_account_id  = "<12-digit-account-id>"
+# test_account_id = "<12-digit-account-id>"
+# prod_account_id = "<12-digit-account-id>"
+
+# Optional notifications
+# pipeline_notification_email = "<address>"
+# approval_notification_email = "<address>"
+# slack_webhook_secret_arn    = "<secrets-manager-arn>"

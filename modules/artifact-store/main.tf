@@ -23,41 +23,6 @@ resource "aws_s3_bucket" "artifacts" {
   }
 }
 
-
-resource "aws_s3_bucket_replication_configuration" "artifacts" {
-  bucket = aws_s3_bucket.artifacts.id
-  role   = var.replication_role_arn
-
-  rule {
-    id     = "replicate-artifacts"
-    status = "Enabled"
-
-    filter {} # empty filter = replicate all objects
-
-    destination {
-      bucket        = var.replication_destination_bucket_arn
-      storage_class = "STANDARD_IA" # cheaper for DR copies
-
-      encryption_configuration {
-        replica_kms_key_id = var.replication_destination_kms_key_arn
-      }
-    }
-
-    source_selection_criteria {
-      sse_kms_encrypted_objects {
-        status = "Enabled" # required when source objects are KMS-encrypted
-      }
-    }
-
-    delete_marker_replication {
-      status = "Enabled" # replicate deletions for full audit trail
-    }
-  }
-
-  # Versioning must be enabled before replication can be configured
-  depends_on = [aws_s3_bucket_versioning.artifacts]
-}
-
 resource "aws_s3_bucket_versioning" "artifacts" {
   bucket = aws_s3_bucket.artifacts.id
   versioning_configuration { status = "Enabled" }
@@ -67,8 +32,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "artifacts" {
   bucket = aws_s3_bucket.artifacts.id
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = var.kms_key_arn
+      sse_algorithm = "aws:kms"
     }
     bucket_key_enabled = true
   }
@@ -134,15 +98,6 @@ resource "aws_s3_bucket_policy" "artifacts" {
   })
 }
 
-resource "aws_s3_bucket_notification" "artifacts" {
-  bucket = aws_s3_bucket.artifacts.id
-
-  topic {
-    topic_arn = "arn:aws:sns:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${var.organization_name}-${var.environment}-artifact-events"
-    events    = ["s3:ObjectCreated:*", "s3:ObjectRemoved:*"]
-  }
-}
-
 # ---- Access Logging Bucket ----------------------------------
 resource "aws_s3_bucket" "access_logs" {
   bucket        = "${var.bucket_name}-access-logs"
@@ -150,39 +105,6 @@ resource "aws_s3_bucket" "access_logs" {
   tags          = { Name = "${var.bucket_name}-access-logs", Purpose = "s3-access-logs" }
 }
 
-
-resource "aws_s3_bucket_replication_configuration" "access_logs" {
-  bucket = aws_s3_bucket.access_logs.id
-  role   = var.replication_role_arn
-
-  rule {
-    id     = "replicate-access-logs"
-    status = "Enabled"
-
-    filter {} # replicate all objects
-
-    destination {
-      bucket        = var.replication_destination_logs_bucket_arn
-      storage_class = "STANDARD_IA"
-
-      encryption_configuration {
-        replica_kms_key_id = var.replication_destination_kms_key_arn
-      }
-    }
-
-    source_selection_criteria {
-      sse_kms_encrypted_objects {
-        status = "Enabled"
-      }
-    }
-
-    delete_marker_replication {
-      status = "Enabled"
-    }
-  }
-
-  depends_on = [aws_s3_bucket_versioning.access_logs]
-}
 
 resource "aws_s3_bucket_public_access_block" "access_logs" {
   bucket                  = aws_s3_bucket.access_logs.id
@@ -201,8 +123,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "access_logs" {
   bucket = aws_s3_bucket.access_logs.id
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = var.kms_key_arn
+      sse_algorithm = "aws:kms"
     }
     bucket_key_enabled = true
   }
@@ -214,18 +135,12 @@ resource "aws_s3_bucket_lifecycle_configuration" "access_logs" {
   rule {
     id     = "expire-access-logs"
     status = "Enabled"
+
+    filter {}
+
     expiration { days = 90 }
     noncurrent_version_expiration { noncurrent_days = 7 }
     abort_incomplete_multipart_upload { days_after_initiation = 1 }
-  }
-}
-
-resource "aws_s3_bucket_notification" "access_logs" {
-  bucket = aws_s3_bucket.access_logs.id
-
-  topic {
-    topic_arn = "arn:aws:sns:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${var.organization_name}-${var.environment}-access-logs-events"
-    events    = ["s3:ObjectCreated:*"]
   }
 }
 
@@ -239,10 +154,8 @@ resource "aws_s3_bucket_logging" "artifacts" {
 resource "aws_cloudwatch_log_group" "pipeline" {
   name              = "/aws/codepipeline/${var.organization_name}-${var.environment}"
   retention_in_days = 365
-  kms_key_id        = var.kms_key_arn
   tags              = { Name = "${var.organization_name}-${var.environment}-pipeline-logs" }
 }
 
 # ---- Data sources for dynamic values -----------------------
 data "aws_caller_identity" "current" {}
-data "aws_region" "current" {}

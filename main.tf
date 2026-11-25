@@ -11,98 +11,71 @@
 #   [Approval + CAB] → Deploy PROD
 # ============================================================
 
-data "aws_caller_identity" "current" {}
-data "aws_partition" "current" {}
-data "aws_region" "current" {}
+# Every resource below runs in Ireland (eu-west-1) through provider alias aws.ireland. Container images are pushed to the
+# Landing Zone ECR repository in af-south-1 (landing_zone.tf); CodeBuild logs in to that registry cross-Region.
 
-variable "enable_pull_through_cache" {
-  description = "Enable ECR pull-through cache for image pulls"
-  type        = bool
-  default     = false
-}
-
-locals {
-  name_prefix = "${var.organization_name}-${var.environment}"
-  account_id  = data.aws_caller_identity.current.account_id
-  partition   = data.aws_partition.current.partition
-  region      = data.aws_region.current.name
+data "aws_region" "ireland" {
+  provider = aws.ireland
 }
 
 # ---- 1. Pipeline IAM Roles ----------------------------------
 module "pipeline_iam" {
-  source = "./modules/pipeline-iam"
+  source    = "./modules/pipeline-iam"
+  providers = { aws = aws.ireland }
 
   organization_name        = var.organization_name
   environment              = var.environment
   account_id               = local.account_id
   partition                = local.partition
-  region                   = local.region
+  region                   = data.aws_region.ireland.name
   artifact_bucket_name     = var.artifact_bucket_name
-  kms_key_arn              = var.kms_key_arn
-  dev_account_id           = var.dev_account_id
-  test_account_id          = var.test_account_id # Used for cross-account access to the test account for integration testing
-  prod_account_id          = var.prod_account_id
+  dev_account_id           = local.dev_account_id
+  test_account_id          = local.test_account_id # Used for cross-account access to the test account for integration testing
+  prod_account_id          = local.prod_account_id
   codeartifact_domain_name = var.codeartifact_domain_name
   codeartifact_enabled     = var.codeartifact_enabled
+  ecr_repository_arn       = local.ecr_repository_arn
 }
 
 # ---- 2. Artifact Store (S3) ---------------------------------
 module "artifact_store" {
-  source = "./modules/artifact-store"
+  source    = "./modules/artifact-store"
+  providers = { aws = aws.ireland }
 
   organization_name  = var.organization_name
   environment        = var.environment
   bucket_name        = var.artifact_bucket_name
-  kms_key_arn        = var.kms_key_arn
   retention_days     = var.artifact_retention_days
   pipeline_role_arn  = module.pipeline_iam.codepipeline_role_arn
   codebuild_role_arn = module.pipeline_iam.codebuild_role_arn
   log_retention_days = var.log_retention_days
 }
 
-# ---- 3. ECR Repositories ------------------------------------
-module "ecr" {
-  source = "./modules/ecr"
-
-  organization_name         = var.organization_name
-  environment               = var.environment
-  repository_names          = var.ecr_repository_names
-  image_retention_count     = var.ecr_image_retention_count
-  scan_on_push              = var.ecr_scan_on_push
-  enable_pull_through_cache = var.enable_pull_through_cache
-  kms_key_arn               = var.kms_key_arn
-  codebuild_role_arn        = module.pipeline_iam.codebuild_role_arn
-  cross_account_ids         = [var.dev_account_id, var.test_account_id, var.prod_account_id]
-}
-
 # ---- 4. CodeArtifact (Package Registry) ---------------------
 module "codeartifact" {
-  providers = {
-    aws = aws.codeartifact
-  }
-
-  source = "./modules/codeartifact"
-  count  = var.codeartifact_enabled ? 1 : 0
+  source    = "./modules/codeartifact"
+  providers = { aws = aws.ireland }
+  count     = var.codeartifact_enabled ? 1 : 0
 
   organization_name  = var.organization_name
   environment        = var.environment
   domain_name        = coalesce(var.codeartifact_domain_name, "${var.organization_name}-${var.environment}")
-  kms_key_arn        = var.kms_key_arn
   codebuild_role_arn = module.pipeline_iam.codebuild_role_arn
   account_id         = local.account_id
+  kms_key_arn        = var.kms_key_arn
 }
 
 # ---- 5. CodeBuild Projects ----------------------------------
 module "codebuild" {
-  source = "./modules/codebuild"
+  source    = "./modules/codebuild"
+  providers = { aws = aws.ireland }
 
   organization_name       = var.organization_name
   environment             = var.environment
-  region                  = local.region
+  region                  = data.aws_region.ireland.name
   account_id              = local.account_id
   codebuild_role_arn      = module.pipeline_iam.codebuild_role_arn
   artifact_bucket_name    = var.artifact_bucket_name
-  kms_key_arn             = var.kms_key_arn
   build_image             = var.build_image
   build_compute_type      = var.build_compute_type
   build_timeout_minutes   = var.build_timeout_minutes
@@ -110,7 +83,9 @@ module "codebuild" {
   private_subnet_ids      = var.private_subnet_ids
   security_group_ids      = var.codebuild_security_group_ids
   log_retention_days      = var.log_retention_days
-  ecr_repository_urls     = module.ecr.repository_urls
+  ecr_repository_url      = local.ecr_repository_url
+  ecr_region              = local.ecr_region
+  workload_region         = var.primary_region
   sast_enabled            = var.sast_enabled
   dast_enabled            = var.dast_enabled
   sbom_enabled            = var.sbom_enabled
@@ -121,39 +96,39 @@ module "codebuild" {
   container_scan_severity = var.container_scan_severity_threshold
   codeartifact_domain     = var.codeartifact_enabled ? module.codeartifact[0].domain_name : ""
   codeartifact_repository = var.codeartifact_enabled ? module.codeartifact[0].repository_name : ""
-  dev_account_id          = var.dev_account_id
-  test_account_id         = var.test_account_id
-  prod_account_id         = var.prod_account_id
+  dev_account_id          = local.dev_account_id
+  test_account_id         = local.test_account_id
+  prod_account_id         = local.prod_account_id
 
   depends_on = [module.artifact_store, module.pipeline_iam]
 }
 
 # ---- 6. Notifications ---------------------------------------
 module "notifications" {
-  source = "./modules/notifications"
+  source    = "./modules/notifications"
+  providers = { aws = aws.ireland }
 
   organization_name           = var.organization_name
   environment                 = var.environment
-  kms_key_arn                 = var.kms_key_arn
   pipeline_notification_email = var.pipeline_notification_email
   approval_notification_email = var.approval_notification_email
   slack_webhook_secret_arn    = var.slack_webhook_secret_arn
   log_retention_days          = var.log_retention_days
   account_id                  = local.account_id
-  region                      = local.region
+  region                      = data.aws_region.ireland.name
 }
 
 # ---- 7. CodePipeline ----------------------------------------
 module "codepipeline" {
-  source = "./modules/codepipeline"
+  source    = "./modules/codepipeline"
+  providers = { aws = aws.ireland }
 
   organization_name             = var.organization_name
   environment                   = var.environment
-  region                        = local.region
+  region                        = data.aws_region.ireland.name
   account_id                    = local.account_id
   pipeline_role_arn             = module.pipeline_iam.codepipeline_role_arn
   artifact_bucket_name          = module.artifact_store.bucket_name
-  kms_key_arn                   = var.kms_key_arn
   source_provider               = var.source_provider
   github_connection_arn         = var.github_connection_arn
   repository_name               = var.repository_name
@@ -182,6 +157,8 @@ module "codepipeline" {
 
 # ---- 8. CloudWatch Pipeline Monitoring ----------------------
 resource "aws_cloudwatch_metric_alarm" "pipeline_failures" {
+  provider            = aws.ireland
+  count               = var.enable_alarms ? 1 : 0
   alarm_name          = "${local.name_prefix}-pipeline-failures"
   alarm_description   = "CodePipeline execution failures exceeded threshold"
   comparison_operator = "GreaterThanOrEqualToThreshold"
@@ -202,6 +179,8 @@ resource "aws_cloudwatch_metric_alarm" "pipeline_failures" {
 }
 
 resource "aws_cloudwatch_dashboard" "pipeline" {
+  provider       = aws.ireland
+  count          = var.enable_alarms ? 1 : 0
   dashboard_name = "${local.name_prefix}-devsecops-pipeline"
 
   dashboard_body = jsonencode({
@@ -213,6 +192,7 @@ resource "aws_cloudwatch_dashboard" "pipeline" {
         width  = 24
         height = 2
         properties = {
+          region   = var.ireland_region
           markdown = "# DevSecOps Pipeline Dashboard — ${upper(var.environment)}\n**Organisation:** ${var.organization_name} | **Pipeline:** ${module.codepipeline.pipeline_name}"
         }
       },
@@ -223,6 +203,7 @@ resource "aws_cloudwatch_dashboard" "pipeline" {
         width  = 8
         height = 6
         properties = {
+          region = var.ireland_region
           title  = "Pipeline Executions"
           period = 86400
           stat   = "Sum"
@@ -240,6 +221,7 @@ resource "aws_cloudwatch_dashboard" "pipeline" {
         width  = 8
         height = 6
         properties = {
+          region = var.ireland_region
           title  = "Build Duration (avg)"
           period = 3600
           stat   = "Average"
@@ -256,6 +238,7 @@ resource "aws_cloudwatch_dashboard" "pipeline" {
         width  = 8
         height = 6
         properties = {
+          region = var.ireland_region
           title  = "Security Gate Failures"
           period = 86400
           stat   = "Sum"

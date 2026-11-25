@@ -13,44 +13,50 @@
 # ============================================================
 
 terraform {
-  required_version = ">= 1.6.0"
+  required_version = ">= 1.10.0"
 
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.40"
+      version = "~> 5.0"
+    }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.4"
     }
   }
 
-  # Remote backend — overridden per environment in environments/<env>/backend.tf
+  # Partial backend: bucket and region come from environments/<env>/backend.hcl, the key from scripts/tf.sh.
   backend "s3" {}
 }
 
-# provider alias because service not yet GA in my primary region af-south-1
-
-provider "aws" {
-  alias  = "codeartifact"
-  region = "eu-west-1"
-}
-provider "aws" {
-
-  alias  = "cicd"
-  region = "eu-west-1"
+locals {
+  default_tags = {
+    Project     = "aws-devsecops-pipeline"
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+    Owner       = var.owner
+    CostCenter  = var.cost_center
+  }
 }
 
-# ---- Primary region provider (pipeline account) -------------
+# Cape Town (default): only the Landing Zone remote state is read from here. Nothing in this stack is created in af-south-1.
 provider "aws" {
-  region = var.aws_region
+  region = var.primary_region
 
   default_tags {
-    tags = {
-      Project     = "aws-devsecops-pipeline"
-      ManagedBy   = "Terraform"
-      Owner       = var.owner
-      CostCenter  = var.cost_center
-      Environment = var.environment
-      Repository  = "aws-devsecops-pipeline"
-      Portfolio   = "enterprise-cloud-platform"
-    }
+    tags = local.default_tags
+  }
+}
+
+# Ireland: AWS CodeConnections (the GitHub source connection) and AWS CodeArtifact are not offered in af-south-1
+# (docs/regional-availability.md, checked 2026-11-25). A pipeline can only use a connection from its own Region, so
+# CodePipeline, CodeBuild, the artifact bucket, CodeArtifact and the alerting topics all run in eu-west-1 through this alias.
+provider "aws" {
+  alias  = "ireland"
+  region = var.ireland_region
+
+  default_tags {
+    tags = local.default_tags
   }
 }

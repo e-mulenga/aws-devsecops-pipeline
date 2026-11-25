@@ -23,10 +23,6 @@ variable "artifact_bucket_name" {
   type = string
 }
 
-variable "kms_key_arn" {
-  type = string
-}
-
 variable "dev_account_id" {
   type = string
 }
@@ -47,4 +43,9 @@ variable "codeartifact_domain_name" {
 variable "codeartifact_enabled" {
   type    = bool
   default = true
+}
+
+variable "ecr_repository_arn" {
+  type        = string
+  description = "ARN of the Landing Zone ECR repository the pipeline pushes to."
 }

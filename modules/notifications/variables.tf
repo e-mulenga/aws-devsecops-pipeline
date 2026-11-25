@@ -6,10 +6,6 @@ variable "environment" {
   type = string
 }
 
-variable "kms_key_arn" {
-  type = string
-}
-
 variable "pipeline_notification_email" {
   type    = string
   default = ""
@@ -34,6 +30,12 @@ variable "log_retention_days" {
 
 variable "account_id" {
   type = string
+}
+
+variable "region" {
+  type        = string
+  default     = ""
+  description = "AWS Region the notifications resources are deployed in."
 }
 
 variable "lambda_subnet_ids" {

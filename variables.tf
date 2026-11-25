@@ -15,10 +15,16 @@ variable "organization_name" {
   }
 }
 
-variable "aws_region" {
+variable "primary_region" {
   type        = string
-  description = "Primary AWS region for the pipeline infrastructure."
+  description = "Landing Zone Region (Cape Town). Only the Landing Zone remote state is read from here."
   default     = "af-south-1"
+}
+
+variable "ireland_region" {
+  type        = string
+  description = "Region of the pipeline (CodeConnections and CodeArtifact are not in af-south-1)."
+  default     = "eu-west-1"
 }
 
 variable "environment" {
@@ -45,23 +51,19 @@ variable "cost_center" {
 variable "dev_account_id" {
   type        = string
   description = "AWS Account ID for the Development workload account."
+  default     = ""
 }
 
 variable "test_account_id" {
   type        = string
   description = "AWS Account ID for the Test workload account."
+  default     = ""
 }
 
 variable "prod_account_id" {
   type        = string
   description = "AWS Account ID for the Production workload account."
-}
-
-# ---- Landing Zone Inputs ------------------------------------
-variable "kms_key_arn" {
-  type        = string
-  description = "KMS key ARN from the Landing Zone for encrypting pipeline artifacts."
-  sensitive   = true
+  default     = ""
 }
 
 # ---- Pipeline Source ----------------------------------------
@@ -77,7 +79,7 @@ variable "source_provider" {
 
 variable "github_connection_arn" {
   type        = string
-  description = "CodeStar connection ARN for GitHub integration. Created manually in AWS Console."
+  description = "CodeConnections ARN for GitHub, created in the Ireland Region (scripts/setup-github-connection.sh)."
   default     = ""
   sensitive   = true
 }
@@ -91,25 +93,6 @@ variable "branch_name" {
   type        = string
   description = "Source branch that triggers the pipeline."
   default     = "main"
-}
-
-# ---- Container Registry -------------------------------------
-variable "ecr_repository_names" {
-  type        = list(string)
-  description = "List of ECR repository names to create."
-  default     = ["app", "sidecar", "init"]
-}
-
-variable "ecr_image_retention_count" {
-  type        = number
-  description = "Number of tagged images to retain per ECR repository."
-  default     = 30
-}
-
-variable "ecr_scan_on_push" {
-  type        = bool
-  description = "Enable automatic ECR image scanning on push using Amazon Inspector."
-  default     = true
 }
 
 # ---- Build Configuration ------------------------------------
@@ -245,6 +228,12 @@ variable "codeartifact_enabled" {
 }
 
 # ---- Notifications ------------------------------------------
+variable "kms_key_arn" {
+  type        = string
+  description = "ARN of a customer-managed KMS key for encrypting notification resources. Leave empty to use AWS-managed keys."
+  default     = ""
+}
+
 variable "pipeline_notification_email" {
   type        = string
   description = "Email address for pipeline success/failure notifications."
@@ -282,6 +271,12 @@ variable "log_retention_days" {
   type        = number
   description = "CloudWatch Logs retention in days."
   default     = 90
+}
+
+variable "enable_alarms" {
+  type        = bool
+  description = "Create the pipeline-failure alarm and dashboard."
+  default     = true
 }
 
 variable "pipeline_alarm_threshold_failures" {

@@ -22,10 +22,6 @@ variable "artifact_bucket_name" {
   type = string
 }
 
-variable "kms_key_arn" {
-  type = string
-}
-
 variable "build_image" {
   type    = string
   default = "aws/codebuild/standard:7.0"
@@ -61,9 +57,9 @@ variable "log_retention_days" {
   default = 90
 }
 
-variable "ecr_repository_urls" {
-  type    = map(string)
-  default = {}
+variable "ecr_repository_url" {
+  type        = string
+  description = "URL of the Landing Zone ECR repository images are pushed to (read from LZ remote state)."
 }
 
 variable "iac_scan_enabled" {
@@ -121,4 +117,19 @@ variable "sbom_enabled" {
 variable "secret_scan_enabled" {
   type    = bool
   default = true
+}
+
+variable "sast_enabled" {
+  type    = bool
+  default = true
+}
+
+variable "ecr_region" {
+  type        = string
+  description = "Region of the Landing Zone ECR repositories (af-south-1)."
+}
+
+variable "workload_region" {
+  type        = string
+  description = "Region the workloads are deployed to (af-south-1)."
 }

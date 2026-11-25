@@ -26,14 +26,9 @@ output "artifact_bucket_arn" {
   value       = module.artifact_store.bucket_arn
 }
 
-output "ecr_repository_urls" {
-  description = "Map of ECR repository name to URL."
-  value       = module.ecr.repository_urls
-}
-
-output "ecr_repository_arns" {
-  description = "Map of ECR repository name to ARN."
-  value       = module.ecr.repository_arns
+output "ecr_repository_url" {
+  description = "Landing Zone ECR repository the pipeline pushes to."
+  value       = local.ecr_repository_url
 }
 
 output "codebuild_role_arn" {
@@ -69,7 +64,7 @@ output "approval_topic_arn" {
 
 output "dashboard_name" {
   description = "CloudWatch dashboard name for pipeline observability."
-  value       = aws_cloudwatch_dashboard.pipeline.dashboard_name
+  value       = one(aws_cloudwatch_dashboard.pipeline[*].dashboard_name)
 }
 
 output "build_project_names" {

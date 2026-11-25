@@ -11,32 +11,15 @@
 #   - Optional Lambda for Slack webhook delivery
 # ============================================================
 
-terraform {
-  required_version = ">= 1.0"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = ">= 4.0"
-    }
-    archive = {
-      source  = "hashicorp/archive"
-      version = ">= 2.0"
-    }
-  }
-}
-
-//data "aws_caller_identity" "current" {}
-//data "aws_region" "current" {}
-
 locals {
   name_prefix = "${var.organization_name}-${var.environment}"
 }
 
 # ---- Pipeline Alerts Topic ----------------------------------
 resource "aws_sns_topic" "alerts" {
-  name              = "${local.name_prefix}-pipeline-alerts"
-  kms_master_key_id = var.kms_key_arn
-  tags              = { Name = "${local.name_prefix}-pipeline-alerts" }
+  # checkov:skip=CKV_AWS_26: AWS-managed alias/aws/sns blocks EventBridge and CodeStar Notifications from publishing; a CMK would need a repo-owned key in Ireland (docs/DECISIONS.md ADR-4). Messages carry pipeline names and status only.
+  name = "${local.name_prefix}-pipeline-alerts"
+  tags = { Name = "${local.name_prefix}-pipeline-alerts" }
 }
 
 resource "aws_sns_topic_subscription" "alerts_email" {
@@ -48,9 +31,9 @@ resource "aws_sns_topic_subscription" "alerts_email" {
 
 # ---- Approval Topic -----------------------------------------
 resource "aws_sns_topic" "approval" {
-  name              = "${local.name_prefix}-pipeline-approval"
-  kms_master_key_id = var.kms_key_arn
-  tags              = { Name = "${local.name_prefix}-pipeline-approval" }
+  # checkov:skip=CKV_AWS_26: AWS-managed alias/aws/sns blocks EventBridge and CodeStar Notifications from publishing; a CMK would need a repo-owned key in Ireland (docs/DECISIONS.md ADR-4). Messages carry pipeline names and status only.
+  name = "${local.name_prefix}-pipeline-approval"
+  tags = { Name = "${local.name_prefix}-pipeline-approval" }
 }
 
 resource "aws_sns_topic_subscription" "approval_email" {
@@ -191,11 +174,6 @@ resource "aws_iam_role_policy" "slack_notifier" {
       },
       {
         Effect   = "Allow"
-        Action   = ["kms:Decrypt"]
-        Resource = [var.kms_key_arn]
-      },
-      {
-        Effect   = "Allow"
         Action   = ["sqs:SendMessage"]
         Resource = [aws_sqs_queue.slack_notifier_dlq[0].arn]
       },
@@ -212,14 +190,13 @@ resource "aws_cloudwatch_log_group" "slack_notifier" {
   count             = var.slack_webhook_secret_arn != "" ? 1 : 0
   name              = "/aws/lambda/${local.name_prefix}-slack-notifier"
   retention_in_days = 365
-  kms_key_id        = var.kms_key_arn
 }
 
 # ---- SQS DLQ for Lambda failures ----------------------------
 resource "aws_sqs_queue" "slack_notifier_dlq" {
-  count             = var.slack_webhook_secret_arn != "" ? 1 : 0
-  name              = "${local.name_prefix}-slack-notifier-dlq"
-  kms_master_key_id = var.kms_key_arn
+  sqs_managed_sse_enabled = true
+  count                   = var.slack_webhook_secret_arn != "" ? 1 : 0
+  name                    = "${local.name_prefix}-slack-notifier-dlq"
 }
 
 resource "aws_lambda_function" "slack_notifier" {
@@ -230,7 +207,6 @@ resource "aws_lambda_function" "slack_notifier" {
   handler       = "handler.lambda_handler"
   timeout       = 10
   architectures = ["arm64"]
-  kms_key_arn   = var.kms_key_arn
 
   filename         = data.archive_file.slack_notifier[0].output_path
   source_code_hash = data.archive_file.slack_notifier[0].output_base64sha256
